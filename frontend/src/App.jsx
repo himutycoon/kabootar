@@ -21,6 +21,8 @@ import ExplorePage from './pages/ExplorePage';
 import NotificationsPage from './pages/NotificationsPage';
 import DeleteAccountPage from './pages/DeleteAccountPage';
 import LandingPage from './pages/LandingPage';
+import TermsPage from './pages/TermsPage';
+import PrivacyPage from './pages/PrivacyPage';
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -96,6 +98,8 @@ function AppRoutes() {
           <Route path="/my-parcels" element={<PrivateRoute><MyParcelsPage /></PrivateRoute>} />
           <Route path="/kyc" element={<PrivateRoute><KYCPage /></PrivateRoute>} />
         </Route>
+        <Route path="/terms" element={<TermsPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route path="/complete-profile" element={<CompleteProfilePage />} />
         <Route path="/delete-account" element={<DeleteAccountPage />} />
         <Route path="/admin" element={<AdminPage />} />

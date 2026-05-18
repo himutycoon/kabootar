@@ -1020,9 +1020,12 @@ export default function LandingPage() {
               <div>
                 <p className="font-bold text-stone-300 text-sm mb-3">Company</p>
                 <div className="space-y-2">
-                  {['About Us', 'Careers', 'Contact Us'].map(l => (
-                    <button key={l} className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">{l}</button>
-                  ))}
+                  <button onClick={() => scrollTo('hero')}
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">About Us</button>
+                  <a href="mailto:kabutar.support@gmail.com"
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Careers</a>
+                  <a href="mailto:kabutar.support@gmail.com"
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Contact Us</a>
                 </div>
               </div>
 
@@ -1030,9 +1033,14 @@ export default function LandingPage() {
               <div>
                 <p className="font-bold text-stone-300 text-sm mb-3">Support</p>
                 <div className="space-y-2">
-                  {['Help Center', 'Safety', 'Terms & Conditions', 'Privacy Policy'].map(l => (
-                    <button key={l} className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">{l}</button>
-                  ))}
+                  <a href="mailto:kabutar.support@gmail.com"
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Help Center</a>
+                  <button onClick={() => scrollTo('safety')}
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Safety</button>
+                  <button onClick={() => navigate('/terms')}
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Terms &amp; Conditions</button>
+                  <button onClick={() => navigate('/privacy')}
+                    className="block text-sm text-stone-500 hover:text-orange-400 transition-colors">Privacy Policy</button>
                 </div>
               </div>
 
@@ -1041,29 +1049,37 @@ export default function LandingPage() {
                 <p className="font-bold text-stone-300 text-sm mb-3">Follow Us</p>
                 <div className="flex gap-2 flex-wrap">
                   {[
-                    { icon: '📸', label: 'Instagram' },
-                    { icon: '🐦', label: 'Twitter'   },
-                    { icon: '📘', label: 'Facebook'  },
-                    { icon: '💼', label: 'LinkedIn'  },
-                    { icon: '▶',  label: 'YouTube'   },
+                    { icon: '📸', label: 'Instagram', href: 'https://instagram.com' },
+                    { icon: '🐦', label: 'Twitter',   href: 'https://twitter.com'   },
+                    { icon: '📘', label: 'Facebook',  href: 'https://facebook.com'  },
+                    { icon: '💼', label: 'LinkedIn',  href: 'https://linkedin.com'  },
+                    { icon: '▶',  label: 'YouTube',   href: 'https://youtube.com'   },
                   ].map(s => (
-                    <button key={s.label}
+                    <a key={s.label} href={s.href} target="_blank" rel="noopener noreferrer"
                       className="w-9 h-9 rounded-xl bg-stone-800 hover:bg-orange-500 flex items-center justify-center text-sm transition-all active:scale-90"
                       title={s.label}>
                       {s.icon}
-                    </button>
+                    </a>
                   ))}
                 </div>
-                <p className="text-xs text-stone-600 mt-4">kabutar.support@gmail.com</p>
+                <a href="mailto:kabutar.support@gmail.com"
+                  className="text-xs text-stone-500 hover:text-orange-400 transition-colors mt-4 block">
+                  kabutar.support@gmail.com
+                </a>
               </div>
             </div>
 
             <div className="border-t border-stone-800 pt-6 flex flex-col lg:flex-row justify-between items-center gap-3">
               <p className="text-xs text-stone-600">Designed with ❤️ for India's travelers</p>
               <div className="flex gap-4">
-                {['Privacy Policy', 'Terms', 'Safety'].map(l => (
-                  <button key={l} className="text-xs text-stone-600 hover:text-orange-400 transition-colors">{l}</button>
-                ))}
+                <button onClick={() => navigate('/privacy')}
+                  className="text-xs text-stone-600 hover:text-orange-400 transition-colors">Privacy Policy</button>
+                <button onClick={() => navigate('/terms')}
+                  className="text-xs text-stone-600 hover:text-orange-400 transition-colors">Terms</button>
+                <button onClick={() => scrollTo('safety')}
+                  className="text-xs text-stone-600 hover:text-orange-400 transition-colors">Safety</button>
+                <a href="mailto:kabutar.support@gmail.com"
+                  className="text-xs text-stone-600 hover:text-orange-400 transition-colors">Contact</a>
               </div>
             </div>
           </div>
