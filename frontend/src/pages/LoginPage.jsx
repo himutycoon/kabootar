@@ -328,11 +328,12 @@ export default function LoginPage() {
   const stepNumber = step === STEPS.PHONE ? 1 : step === STEPS.OTP ? 2 : 3;
 
   return (
-    <div className="min-h-screen flex flex-col bg-stone-50">
+    // overflow-y-auto lets the page scroll when the keyboard pushes content up on mobile web
+    <div className="min-h-screen flex flex-col bg-stone-50 overflow-y-auto">
 
-      {/* Orange header */}
-      <div style={{ background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}
-        className="px-5 pt-14 pb-8 relative overflow-hidden">
+      {/* Orange header — APK gets extra top padding for status bar; web just 24px */}
+      <div className="px-5 pb-8 relative overflow-hidden"
+        style={{ paddingTop: isNativeApp ? 'calc(env(safe-area-inset-top, 0px) + 56px)' : '24px', background: 'linear-gradient(135deg, #f97316 0%, #ea580c 100%)' }}>
         {/* Decorative circle */}
         <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-white/10 pointer-events-none" />
 
@@ -396,11 +397,12 @@ export default function LoginPage() {
                 <span className="text-stone-600 font-bold text-sm">🇮🇳 +91</span>
               </div>
               <input
-                className="flex-1 bg-white border border-stone-200 rounded-2xl px-4 py-3.5 text-xl font-bold tracking-[0.15em] text-stone-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all placeholder:text-stone-300 placeholder:font-normal placeholder:tracking-normal shadow-sm"
-                placeholder="98765 43210"
+                className="flex-1 min-w-0 bg-white border border-stone-200 rounded-2xl px-4 py-3.5 text-lg font-bold tracking-widest text-stone-900 outline-none focus:border-orange-400 focus:ring-2 focus:ring-orange-100 transition-all placeholder:text-stone-300 placeholder:font-normal placeholder:tracking-normal shadow-sm"
+                placeholder="9876543210"
                 value={phone}
                 onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
                 onKeyDown={e => e.key === 'Enter' && phone.length === 10 && sendOtp()}
+                onFocus={e => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                 type="tel" inputMode="numeric" autoFocus maxLength={10}
               />
             </div>
@@ -443,21 +445,22 @@ export default function LoginPage() {
               {loading ? 'Verifying your code…' : 'Auto-fills from SMS · or enter below'}
             </p>
 
-            {/* 6-digit boxes */}
-            <div className="flex gap-2 justify-center">
+            {/* 6-digit boxes — grid so they shrink on narrow screens instead of overflowing */}
+            <div className="grid grid-cols-6 gap-1.5 w-full max-w-xs mx-auto">
               {otp.map((d, i) => (
                 <input key={i}
                   ref={el => (otpRefs.current[i] = el)}
-                  className={`w-11 h-13 shrink-0 text-center font-black text-xl border-2 rounded-2xl outline-none transition-all bg-white
+                  className={`w-full text-center font-black text-xl border-2 rounded-xl outline-none transition-all bg-white
                     ${loading ? 'opacity-40 pointer-events-none' : ''}
                     ${d
                       ? 'border-orange-400 bg-orange-50 text-orange-600 shadow-sm shadow-orange-100'
                       : 'border-stone-200 text-stone-900 focus:border-orange-400 focus:ring-2 focus:ring-orange-100'
                     }`}
-                  style={{ height: 52 }}
+                  style={{ aspectRatio: '1 / 1.15' }}
                   value={d}
                   onChange={e => handleOtpChange(e.target.value, i)}
                   onKeyDown={e => handleOtpKey(e, i)}
+                  onFocus={e => e.target.scrollIntoView({ behavior: 'smooth', block: 'center' })}
                   inputMode="numeric" maxLength={1}
                   autoComplete={i === 0 ? 'one-time-code' : 'off'}
                   autoFocus={i === 0}

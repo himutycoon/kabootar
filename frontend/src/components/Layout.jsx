@@ -272,14 +272,34 @@ export default function Layout() {
             kabutar
           </span>
         </div>
-        {user && (
-          <button onClick={() => navigate('/profile')}
-            className="w-8 h-8 rounded-full overflow-hidden bg-orange-100 flex items-center justify-center border-2 border-orange-200">
-            {user.profileImage
-              ? <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
-              : <span className="text-orange-600 font-black text-xs">{user.name?.[0]?.toUpperCase()}</span>}
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {user ? (
+            <>
+              <button onClick={() => { localStorage.setItem('kabutar_alerts_seen', Date.now().toString()); setNotifUnread(0); navigate('/notifications'); }}
+                className={`relative w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isNotif ? 'text-orange-500 bg-orange-50' : 'text-stone-500'}`}>
+                <Bell size={17} strokeWidth={1.8} />
+                <Badge count={notifUnread} />
+              </button>
+              <button onClick={() => { setChatUnread(0); navigate('/messages'); }}
+                className={`relative w-8 h-8 rounded-xl flex items-center justify-center transition-all ${isChat ? 'text-orange-500 bg-orange-50' : 'text-stone-500'}`}>
+                <MessageCircle size={17} strokeWidth={1.8} />
+                <Badge count={chatUnread} />
+              </button>
+              <button onClick={() => navigate('/profile')}
+                className="w-7 h-7 rounded-full overflow-hidden bg-orange-100 flex items-center justify-center border-2 border-orange-200">
+                {user.profileImage
+                  ? <img src={user.profileImage} alt="" className="w-full h-full object-cover" />
+                  : <span className="text-orange-600 font-black text-[10px]">{user.name?.[0]?.toUpperCase()}</span>}
+              </button>
+            </>
+          ) : (
+            <button onClick={() => navigate('/login')}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-white active:scale-95 transition-all"
+              style={{ background:'linear-gradient(135deg,#f97316,#ea580c)', boxShadow:'0 2px 8px rgba(249,115,22,0.35)' }}>
+              <LogIn size={13} /> Login
+            </button>
+          )}
+        </div>
       </header>
 
       <style>{`
