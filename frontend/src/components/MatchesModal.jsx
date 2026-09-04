@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { format } from 'date-fns';
 import { X, Zap, MessageCircle, Star, Calendar, Weight, IndianRupee, ChevronRight } from 'lucide-react';
+import { formatTripDatesShort } from '../lib/tripDates';
 import TravelerProfileModal from './TravelerProfileModal';
 
 export default function MatchesModal({ parcel, onClose }) {
@@ -90,7 +90,7 @@ export default function MatchesModal({ parcel, onClose }) {
                       <div className="flex flex-wrap gap-1.5">
                         <span className="badge-stone">
                           <Calendar size={10} />
-                          {format(new Date(trip.date), 'dd MMM')}
+                          {formatTripDatesShort(trip)}
                         </span>
                         <span className="badge-orange">
                           <Weight size={10} />

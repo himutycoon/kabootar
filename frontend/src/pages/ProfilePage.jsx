@@ -5,6 +5,7 @@ import api from '../lib/api';
 import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { format } from 'date-fns';
+import { formatTripDatesLong, hasUpcomingDate } from '../lib/tripDates';
 import {
   Star, Phone, LogOut, Package, Send,
   Shield, CheckCircle, Clock, Camera, Lock, MapPin,
@@ -92,7 +93,7 @@ export default function ProfilePage() {
     if (!user) return;
     const today = new Date(); today.setHours(0,0,0,0);
     api.get('/trips/my').then(r => {
-      setMyTrips(r.data.trips.filter(t => t.status === 'active' && new Date(t.date) >= today));
+      setMyTrips(r.data.trips.filter(t => t.status === 'active' && hasUpcomingDate(t, today)));
     }).catch(() => {});
     api.get('/parcels/my').then(r => {
       const all = r.data.parcels || [];
@@ -419,7 +420,7 @@ export default function ProfilePage() {
                   </div>
                   {/* Meta */}
                   <div className="flex items-center gap-2 text-[11px] text-stone-500 mb-3">
-                    <span>📅 {format(new Date(trip.date), 'dd MMM yyyy')}</span>
+                    <span>📅 {formatTripDatesLong(trip)}</span>
                     <span>· 📦 {trip.availableWeight}kg</span>
                     <span>· ₹{trip.pricePerKg}/kg</span>
                   </div>

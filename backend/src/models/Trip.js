@@ -5,7 +5,16 @@ const tripSchema = new mongoose.Schema(
     userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     fromCity: { type: String, required: true, trim: true },
     toCity: { type: String, required: true, trim: true },
-    date: { type: Date, required: true },
+    // One or more travel dates — lets a regular traveller (daily commuter, etc.)
+    // cover several dates in a single post instead of posting once per date.
+    dates: {
+      type: [Date],
+      required: true,
+      validate: {
+        validator: (v) => Array.isArray(v) && v.length > 0,
+        message: 'At least one travel date is required',
+      },
+    },
     transportMode: {
       type: String,
       enum: ['train', 'flight', 'bus', 'car'],
@@ -25,9 +34,24 @@ const tripSchema = new mongoose.Schema(
     flightNumber: { type: String, default: '', trim: true },   // flight e.g. "AI302"
     trainNumber:  { type: String, default: '', trim: true },   // train number e.g. "12301"
   },
-  { timestamps: true }
+  { timestamps: true, toJSON: { virtuals: true }, toObject: { virtuals: true } }
 );
 
-tripSchema.index({ fromCity: 1, toCity: 1, date: 1 });
+// Backward-compat virtual: older frontend/app builds (and anywhere in this codebase
+// that hasn't been updated) read a single `date` — expose the earliest travel date.
+tripSchema.virtual('date').get(function () {
+  return this.dates && this.dates[0];
+});
+
+// Keep dates deduped and sorted ascending regardless of how they were submitted.
+tripSchema.pre('validate', function (next) {
+  if (Array.isArray(this.dates) && this.dates.length) {
+    const unique = [...new Set(this.dates.map((d) => new Date(d).getTime()))].filter((t) => !Number.isNaN(t));
+    this.dates = unique.sort((a, b) => a - b).map((t) => new Date(t));
+  }
+  next();
+});
+
+tripSchema.index({ fromCity: 1, toCity: 1, dates: 1 });
 
 module.exports = mongoose.model('Trip', tripSchema);

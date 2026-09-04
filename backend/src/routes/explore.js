@@ -13,14 +13,14 @@ router.get('/', async (req, res) => {
     const [trending, trips, parcels, users] = await Promise.all([
       // Trending routes
       Trip.aggregate([
-        { $match: { status: 'active', date: { $gte: startOfToday } } },
+        { $match: { status: 'active', dates: { $gte: startOfToday } } },
         { $group: { _id: { from: '$fromCity', to: '$toCity' }, count: { $sum: 1 } } },
         { $sort: { count: -1 } },
         { $limit: 8 },
         { $project: { _id: 0, from: '$_id.from', to: '$_id.to', count: 1 } },
       ]),
       // Recent active trips (curated feed — no search required)
-      Trip.find({ status: 'active', date: { $gte: startOfToday } })
+      Trip.find({ status: 'active', dates: { $gte: startOfToday } })
         .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted city')
         .sort({ createdAt: -1 })
         .limit(12),

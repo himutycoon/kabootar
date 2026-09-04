@@ -1,25 +1,50 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Send, Clock, Edit2 } from 'lucide-react';
+import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
+import { getTripDates } from '../lib/tripDates';
 
 const TRANSPORT_MODES = ['train', 'flight', 'bus', 'car'];
 const MODE_EMOJI = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
 const today = new Date().toISOString().split('T')[0];
+const toISO = (d) => d.toISOString().split('T')[0];
+const WEEKDAYS = [
+  { i: 1, label: 'Mon' }, { i: 2, label: 'Tue' }, { i: 3, label: 'Wed' },
+  { i: 4, label: 'Thu' }, { i: 5, label: 'Fri' }, { i: 6, label: 'Sat' }, { i: 0, label: 'Sun' },
+];
+const MAX_DATES = 60;
+
+function generateRecurringDates(start, end, weekdaySet) {
+  if (!start || !end || !weekdaySet.size) return [];
+  const out = [];
+  const cur = new Date(start + 'T00:00:00');
+  const last = new Date(end + 'T00:00:00');
+  while (cur <= last && out.length < MAX_DATES) {
+    if (weekdaySet.has(cur.getDay())) out.push(toISO(cur));
+    cur.setDate(cur.getDate() + 1);
+  }
+  return out;
+}
 
 // Pass initialData + tripId to enter edit mode
 export default function PostTripModal({ onClose, onSuccess, initialData = null, tripId = null }) {
   const isEdit = !!tripId;
+  const initialDates = initialData ? getTripDates(initialData).map(toISO) : [];
+
+  const [dateMode, setDateMode] = useState(initialDates.length > 1 ? 'specific' : 'single');
+  const [singleDate, setSingleDate] = useState(initialDates[0] || '');
+  const [specificDates, setSpecificDates] = useState(initialDates.length > 1 ? initialDates : []);
+  const [dateToAdd, setDateToAdd] = useState('');
+  const [recurStart, setRecurStart] = useState(initialDates[0] || '');
+  const [recurEnd, setRecurEnd] = useState('');
+  const [recurDays, setRecurDays] = useState(new Set());
 
   const [form, setForm] = useState({
     fromCity:        initialData?.fromCity        || '',
     fromStation:     initialData?.pickupStation   || '',
     toCity:          initialData?.toCity          || '',
-    date:            initialData?.date
-                       ? new Date(initialData.date).toISOString().split('T')[0]
-                       : '',
     transportMode:   initialData?.transportMode   || 'train',
     departureTime:   initialData?.departureTime   || '',
     arrivalTime:     initialData?.arrivalTime     || '',
@@ -35,11 +60,39 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
 
+  const recurringDates = dateMode === 'recurring' ? generateRecurringDates(recurStart, recurEnd, recurDays) : [];
+
+  const addSpecificDate = () => {
+    if (!dateToAdd) return;
+    if (specificDates.includes(dateToAdd)) { setDateToAdd(''); return; }
+    if (specificDates.length >= MAX_DATES) { toast.error(`You can add up to ${MAX_DATES} dates`); return; }
+    setSpecificDates(d => [...d, dateToAdd].sort());
+    setDateToAdd('');
+    setErrors(e => ({ ...e, dates: undefined }));
+  };
+  const removeSpecificDate = (d) => setSpecificDates(list => list.filter(x => x !== d));
+
+  const toggleRecurDay = (i) => {
+    setRecurDays(prev => {
+      const next = new Set(prev);
+      next.has(i) ? next.delete(i) : next.add(i);
+      return next;
+    });
+    setErrors(e => ({ ...e, dates: undefined }));
+  };
+
+  const resolveDates = () => {
+    if (dateMode === 'single') return singleDate ? [singleDate] : [];
+    if (dateMode === 'specific') return specificDates;
+    return recurringDates;
+  };
+
   const validate = () => {
     const e = {};
     if (!form.fromCity.trim())  e.fromCity = 'Required';
     if (!form.toCity.trim())    e.toCity   = 'Required';
-    if (!form.date)             e.date     = 'Required';
+    const dates = resolveDates();
+    if (!dates.length) e.dates = dateMode === 'recurring' ? 'Pick a date range and at least one day' : 'Required';
     if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Must be > 0';
     if (form.pricePerKg === '' || +form.pricePerKg < 0)     e.pricePerKg      = 'Required';
     setErrors(e);
@@ -53,7 +106,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
       const payload = {
         fromCity:        form.fromCity,
         toCity:          form.toCity,
-        date:            form.date,
+        dates:           resolveDates(),
         transportMode:   form.transportMode,
         availableWeight: +form.availableWeight,
         pricePerKg:      +form.pricePerKg,
@@ -102,9 +155,85 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
             <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" />
           </Field>
 
-          <Field label="Travel Date" error={errors.date}>
-            <input type="date" className="input-field" min={today} value={form.date}
-              onChange={e => set('date', e.target.value)} />
+          <Field label="Travel Date(s)" error={errors.dates}
+            hint="Regular traveller? Cover several dates in one post">
+            <div className="flex gap-1.5 mb-2">
+              {[
+                { k: 'single',    label: 'One date',  icon: null },
+                { k: 'specific',  label: 'Pick dates', icon: CalendarDays },
+                { k: 'recurring', label: 'Recurring',  icon: Repeat },
+              ].map(({ k, label, icon: TabIcon }) => (
+                <button key={k} type="button" onClick={() => setDateMode(k)}
+                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                    dateMode === k
+                      ? 'bg-orange-500 text-white border-orange-500'
+                      : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
+                  }`}>
+                  {TabIcon && <TabIcon size={11} />} {label}
+                </button>
+              ))}
+            </div>
+
+            {dateMode === 'single' && (
+              <input type="date" className="input-field" min={today} value={singleDate}
+                onChange={e => { setSingleDate(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+            )}
+
+            {dateMode === 'specific' && (
+              <div className="space-y-2">
+                <div className="flex gap-2">
+                  <input type="date" className="input-field flex-1" min={today} value={dateToAdd}
+                    onChange={e => setDateToAdd(e.target.value)} />
+                  <button type="button" onClick={addSpecificDate}
+                    className="btn-secondary px-3 flex items-center gap-1 shrink-0">
+                    <Plus size={14} /> Add
+                  </button>
+                </div>
+                {specificDates.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5">
+                    {specificDates.map(d => (
+                      <span key={d} className="flex items-center gap-1 text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 pl-2 pr-1 py-1 rounded-lg">
+                        {new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
+                        <button type="button" onClick={() => removeSpecificDate(d)}
+                          className="w-4 h-4 rounded-full hover:bg-orange-200 flex items-center justify-center">
+                          <X size={10} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+                <p className="text-[10px] text-stone-400">{specificDates.length} date{specificDates.length === 1 ? '' : 's'} selected</p>
+              </div>
+            )}
+
+            {dateMode === 'recurring' && (
+              <div className="space-y-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <input type="date" className="input-field" min={today} value={recurStart}
+                    placeholder="From" onChange={e => setRecurStart(e.target.value)} />
+                  <input type="date" className="input-field" min={recurStart || today} value={recurEnd}
+                    placeholder="To" onChange={e => setRecurEnd(e.target.value)} />
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  {WEEKDAYS.map(({ i, label }) => (
+                    <button key={i} type="button" onClick={() => toggleRecurDay(i)}
+                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                        recurDays.has(i)
+                          ? 'bg-orange-500 text-white border-orange-500'
+                          : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
+                      }`}>
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {recurringDates.length > 0 && (
+                  <p className="text-[10px] text-stone-500">
+                    Creates <span className="font-bold text-orange-600">{recurringDates.length}</span> date{recurringDates.length === 1 ? '' : 's'}
+                    {recurringDates.length >= MAX_DATES && ' (capped)'}
+                  </p>
+                )}
+              </div>
+            )}
           </Field>
 
           <div className="grid grid-cols-2 gap-3">

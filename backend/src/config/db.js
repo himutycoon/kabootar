@@ -18,7 +18,7 @@ const connectDB = async (retries = 5, delay = 3000) => {
         try {
           const db = mongoose2.connection.db;
           // Trips: most queried filters
-          await db.collection('trips').createIndex({ status: 1, date: 1, fromCity: 1, toCity: 1 });
+          await db.collection('trips').createIndex({ status: 1, dates: 1, fromCity: 1, toCity: 1 });
           await db.collection('trips').createIndex({ userId: 1, status: 1 });
           // Parcels: most queried filters
           await db.collection('parcels').createIndex({ status: 1, createdAt: -1, fromCity: 1, toCity: 1 });

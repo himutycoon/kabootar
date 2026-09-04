@@ -20,11 +20,11 @@ router.get('/parcel/:parcelId', protect, async (req, res) => {
       fromCity: { $regex: new RegExp(`^${fromCity}$`, 'i') },
       toCity: { $regex: new RegExp(`^${toCity}$`, 'i') },
       availableWeight: { $gte: weight },
-      date: { $gte: now, $lte: windowEnd },
+      dates: { $gte: now, $lte: windowEnd },
       status: 'active',
     })
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted createdAt')
-      .sort({ date: 1 })
+      .sort({ dates: 1 })
       .limit(20);
 
     res.json({ trips, parcel });

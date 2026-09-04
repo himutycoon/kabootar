@@ -7,6 +7,7 @@ import PostTripModal from '../components/PostTripModal';
 import LocationFilterBar from '../components/LocationFilterBar';
 import { TripSkeletons } from '../components/SkeletonCard';
 import { Plus, X, Calendar, Search, History, RefreshCw } from 'lucide-react';
+import { hasUpcomingDate } from '../lib/tripDates';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
@@ -156,9 +157,9 @@ export default function TripsPage() {
   }, [trips, activeFilter, loc.enabled, loc.nearbyCities, loc.city]); // eslint-disable-line
 
   const sod = startOfToday();
-  const futureMyTrips = myTrips.filter(t => t.status === 'active' && new Date(t.date) >= sod);
-  // Travel history: past dates OR trips marked as completed (full)
-  const pastMyTrips   = myTrips.filter(t => new Date(t.date) < sod || t.status === 'completed');
+  const futureMyTrips = myTrips.filter(t => t.status === 'active' && hasUpcomingDate(t, sod));
+  // Travel history: no upcoming dates left OR trip marked as completed (full)
+  const pastMyTrips   = myTrips.filter(t => !hasUpcomingDate(t, sod) || t.status === 'completed');
   const isOwner = (t) => t.userId?._id === user?._id || t.userId === user?._id;
 
   const renderStaggered = (items, fn) =>

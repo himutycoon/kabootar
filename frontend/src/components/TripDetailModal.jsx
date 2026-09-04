@@ -6,8 +6,9 @@ import { format } from 'date-fns';
 import {
   X, Star, CheckCircle, Clock, MapPin, MessageCircle,
   IndianRupee, ExternalLink, Shield, Train, Plane, Bus, Car,
-  Package, ChevronRight, Share2,
+  Package, ChevronRight, Share2, CalendarDays,
 } from 'lucide-react';
+import { getTripDates, formatTripDatesLong } from '../lib/tripDates';
 
 const TRANSPORT_META = {
   train:  { icon: Train,  emoji: '🚂', label: 'Train',  color: 'bg-blue-50 text-blue-600 border-blue-100' },
@@ -51,8 +52,10 @@ export default function TripDetailModal({ trip, onClose }) {
     authGate(() => navigate(`/chat/${traveller._id}`));
   };
 
+  const tripDates = getTripDates(trip);
+
   const handleShare = () => {
-    const text = `🕊️ *Kabutar* — Traveller available!\n${trip.fromCity} → ${trip.toCity}\n📅 ${format(new Date(trip.date), 'dd MMM yyyy')} ${meta.emoji}\nCan carry ${trip.availableWeight}kg · ₹${trip.pricePerKg}/kg\nhttps://app.kabutar.in`;
+    const text = `🕊️ *Kabutar* — Traveller available!\n${trip.fromCity} → ${trip.toCity}\n📅 ${formatTripDatesLong(trip)} ${meta.emoji}\nCan carry ${trip.availableWeight}kg · ₹${trip.pricePerKg}/kg\nhttps://app.kabutar.in`;
     if (navigator.share) navigator.share({ title: 'Kabutar Traveller', text }).catch(() => {});
     else window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
   };
@@ -74,7 +77,7 @@ export default function TripDetailModal({ trip, onClose }) {
                 {meta.emoji} {meta.label}
               </span>
               <span className="text-xs font-semibold text-stone-500">
-                {format(new Date(trip.date), 'dd MMM yyyy')}
+                {formatTripDatesLong(trip)}
               </span>
             </div>
             <button onClick={handleShare}
@@ -134,6 +137,22 @@ export default function TripDetailModal({ trip, onClose }) {
           </div>
 
           <div className="px-5 space-y-4 pb-4">
+
+            {/* Full list of travel dates — only shown when there's more than one */}
+            {tripDates.length > 1 && (
+              <div className="bg-stone-50 border border-stone-100 rounded-2xl p-4">
+                <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                  <CalendarDays size={11} /> Available on {tripDates.length} dates
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {tripDates.map((d) => (
+                    <span key={d.toISOString()} className="text-[11px] font-bold bg-white border border-stone-200 text-stone-700 px-2 py-1 rounded-lg">
+                      {format(d, 'dd MMM yyyy')}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* PNR / Flight verification */}
             {(trip.pnrNumber || trip.flightNumber || trip.trainNumber) && (

@@ -2,11 +2,11 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
-import { format } from 'date-fns';
 import { MapPin, Trash2, MessageCircle, Star,
          Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2, ExternalLink } from 'lucide-react';
 import TravelerProfileModal from './TravelerProfileModal';
 import TripDetailModal from './TripDetailModal';
+import { formatTripDatesLong } from '../lib/tripDates';
 
 const TRANSPORT_ICONS  = { train: Train, flight: Plane, bus: Bus, car: Car };
 const TRANSPORT_EMOJI  = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
@@ -84,7 +84,7 @@ export default function TripCard({ trip, showDelete, onDelete, onEdit, onMarkFul
 `🕊️ *Kabutar* — Traveller available for your parcel!
 
 ${trip.fromCity} → ${trip.toCity}
-📅 ${format(new Date(trip.date), 'dd MMM yyyy')} · ${TRANSPORT_EMOJI[trip.transportMode]} ${TRANSPORT_LABELS[trip.transportMode]}
+📅 ${formatTripDatesLong(trip)} · ${TRANSPORT_EMOJI[trip.transportMode]} ${TRANSPORT_LABELS[trip.transportMode]}
 Can carry up to ${trip.availableWeight} kg · ₹${trip.pricePerKg}/kg${dep ? `\n🕐 Departs ${dep}` : ''}${arr ? ` · Arrives ${arr}` : ''}
 ${trip.pickupStation ? `📍 ${trip.pickupStation}` : ''}
 ${traveler?.rating ? `⭐ ${traveler.rating.toFixed(1)} rated traveller` : ''}
@@ -110,7 +110,7 @@ https://app.kabutar.in`
               </span>
           }
           <span className="text-[11px] text-stone-500 font-medium shrink-0">
-            {format(new Date(trip.date), 'dd MMM yyyy')}
+            {formatTripDatesLong(trip)}
           </span>
           <span className="text-[10px] text-stone-400 shrink-0">· {TRANSPORT_LABELS[trip.transportMode]}</span>
           {isPast && <span className="ml-auto text-[10px] bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full font-semibold shrink-0">Past</span>}

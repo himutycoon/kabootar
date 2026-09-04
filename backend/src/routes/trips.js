@@ -10,8 +10,8 @@ router.get('/stats', async (req, res) => {
   try {
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const [activeTrips, routes, verifiedUsers] = await Promise.all([
-      Trip.countDocuments({ status: 'active', date: { $gte: startOfToday } }),
-      Trip.distinct('fromCity', { status: 'active', date: { $gte: startOfToday } }),
+      Trip.countDocuments({ status: 'active', dates: { $gte: startOfToday } }),
+      Trip.distinct('fromCity', { status: 'active', dates: { $gte: startOfToday } }),
       User.countDocuments({ kycStatus: 'verified' }),
     ]);
     res.json({ activeTrips, activeRoutes: routes.length, verifiedUsers });
@@ -25,7 +25,7 @@ router.get('/trending', async (req, res) => {
   try {
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const routes = await Trip.aggregate([
-      { $match: { status: 'active', date: { $gte: startOfToday } } },
+      { $match: { status: 'active', dates: { $gte: startOfToday } } },
       { $group: { _id: { from: '$fromCity', to: '$toCity' }, count: { $sum: 1 } } },
       { $sort: { count: -1 } },
       { $limit: 6 },
@@ -58,14 +58,15 @@ router.get('/', optionalAuth, async (req, res) => {
     if (date) {
       const d    = new Date(date);
       const next = new Date(date); next.setDate(next.getDate() + 1);
-      filter.date = { $gte: d < startOfToday ? startOfToday : d, $lt: next };
+      // Matches if ANY of the trip's dates falls on the requested day
+      filter.dates = { $gte: d < startOfToday ? startOfToday : d, $lt: next };
     } else {
-      filter.date = { $gte: startOfToday };
+      filter.dates = { $gte: startOfToday };
     }
 
     const trips = await Trip.find(filter)
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted city createdAt')
-      .sort({ date: 1 })
+      .sort({ dates: 1 })
       .limit(50);
 
     res.json({ trips });
@@ -77,7 +78,7 @@ router.get('/', optionalAuth, async (req, res) => {
 // GET /api/trips/my - My trips (all, including past — used for travel history)
 router.get('/my', protect, async (req, res) => {
   try {
-    const trips = await Trip.find({ userId: req.user._id }).sort({ date: -1 });
+    const trips = await Trip.find({ userId: req.user._id }).sort({ dates: -1 });
     res.json({ trips });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -94,26 +95,40 @@ router.post('/', protect, async (req, res) => {
       });
     }
 
-    // Anti-spam: max 3 active future trips per user
+    // Anti-spam: max 3 active future trips per user (a multi-date post still counts as 1)
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const activeCount = await Trip.countDocuments({
-      userId: req.user._id, status: 'active', date: { $gte: startOfToday },
+      userId: req.user._id, status: 'active', dates: { $gte: startOfToday },
     });
     if (activeCount >= 3) {
       return res.status(429).json({ message: 'You already have 3 upcoming trips. Complete or delete one before posting another.' });
     }
 
-    const { fromCity, toCity, date, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime, pnrNumber, flightNumber, trainNumber } = req.body;
+    const { fromCity, toCity, transportMode, availableWeight, pricePerKg, notes, pickupStation, dropStation, departureTime, arrivalTime, pnrNumber, flightNumber, trainNumber } = req.body;
 
-    if (!fromCity || !toCity || !date || !transportMode || !availableWeight || pricePerKg === undefined) {
+    // Accept either a `dates` array (specific dates / generated from a recurring
+    // pattern client-side) or a legacy single `date` string for older app builds.
+    const rawDates = Array.isArray(req.body.dates) ? req.body.dates : (req.body.date ? [req.body.date] : []);
+    const MAX_DATES = 60;
+    const dates = [...new Set(
+      rawDates.map((d) => new Date(d).getTime()).filter((t) => !Number.isNaN(t))
+    )].sort((a, b) => a - b).map((t) => new Date(t));
+
+    if (!fromCity || !toCity || !dates.length || !transportMode || !availableWeight || pricePerKg === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
+    }
+    if (dates[0] < startOfToday) {
+      return res.status(400).json({ message: 'Travel dates must be today or later' });
+    }
+    if (dates.length > MAX_DATES) {
+      return res.status(400).json({ message: `You can add up to ${MAX_DATES} dates in a single trip post` });
     }
 
     const trip = await Trip.create({
       userId: req.user._id,
       fromCity,
       toCity,
-      date,
+      dates,
       transportMode,
       availableWeight,
       pricePerKg,
@@ -157,6 +172,10 @@ router.patch('/:id', protect, async (req, res) => {
   try {
     const trip = await Trip.findOne({ _id: req.params.id, userId: req.user._id });
     if (!trip) return res.status(404).json({ message: 'Trip not found or not authorized' });
+
+    if (Array.isArray(req.body.dates) && req.body.dates.length > 60) {
+      return res.status(400).json({ message: 'You can add up to 60 dates in a single trip post' });
+    }
 
     Object.assign(trip, req.body);
     await trip.save();
