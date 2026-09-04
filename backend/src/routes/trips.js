@@ -65,12 +65,24 @@ router.get('/', optionalAuth, async (req, res) => {
       filter.dates = { $gte: startOfToday };
     }
 
-    const trips = await Trip.find(filter)
+    let trips = await Trip.find(filter)
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted city createdAt')
       .sort({ dates: 1 })
       .limit(50);
 
-    res.json({ trips });
+    // No exact match on the requested date → fall back to the same route on
+    // any future date, so a sender still sees travellers they could message
+    let exactDateMatch = true;
+    if (date && trips.length === 0) {
+      exactDateMatch = false;
+      const fallbackFilter = { ...filter, dates: { $gte: startOfToday } };
+      trips = await Trip.find(fallbackFilter)
+        .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted city createdAt')
+        .sort({ dates: 1 })
+        .limit(50);
+    }
+
+    res.json({ trips, exactDateMatch });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

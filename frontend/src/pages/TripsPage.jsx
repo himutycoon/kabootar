@@ -55,6 +55,7 @@ export default function TripsPage() {
   const loc       = useLocationFilter();
 
   const [trips,      setTrips]      = useState([]);
+  const [exactDateMatch, setExactDateMatch] = useState(true);
   const [myTrips,    setMyTrips]    = useState([]);
   const [loading,    setLoading]    = useState(false);
   const [fetchedAt,  setFetchedAt]  = useState(null);
@@ -90,6 +91,7 @@ export default function TripsPage() {
       if (user) promises.push(api.get('/trips/my'));
       const [allRes, myRes] = await Promise.all(promises);
       setTrips(allRes.data.trips);
+      setExactDateMatch(allRes.data.exactDateMatch !== false);
       if (myRes) setMyTrips(myRes.data.trips);
       setFetchedAt(Date.now());
     } finally { setLoading(false); }
@@ -290,6 +292,13 @@ export default function TripsPage() {
           </div>
         ) : (
           <div className="space-y-2">
+            {search.date && !exactDateMatch && (
+              <div className="bg-amber-50 border border-amber-100 rounded-xl px-3 py-2 mb-1">
+                <p className="text-xs text-amber-700 font-semibold">
+                  No travellers on {format(new Date(search.date), 'dd MMM')} — showing other upcoming dates on this route
+                </p>
+              </div>
+            )}
             <p className="text-xs text-stone-400">
               {filteredTrips.length} traveller{filteredTrips.length !== 1 ? 's' : ''} found
               {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
