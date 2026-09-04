@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat } from 'lucide-react';
+import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat, Route, Package, Compass } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import { getTripDates } from '../lib/tripDates';
@@ -10,11 +10,24 @@ const TRANSPORT_MODES = ['train', 'flight', 'bus', 'car'];
 const MODE_EMOJI = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
 const today = new Date().toISOString().split('T')[0];
 const toISO = (d) => d.toISOString().split('T')[0];
+const fmtShort = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
 const WEEKDAYS = [
   { i: 1, label: 'Mon' }, { i: 2, label: 'Tue' }, { i: 3, label: 'Wed' },
   { i: 4, label: 'Thu' }, { i: 5, label: 'Fri' }, { i: 6, label: 'Sat' }, { i: 0, label: 'Sun' },
 ];
+const DURATIONS = [
+  { days: 7,  label: '1 week' },
+  { days: 14, label: '2 weeks' },
+  { days: 30, label: '1 month' },
+  { days: 60, label: '2 months' },
+];
 const MAX_DATES = 60;
+
+function addDaysISO(startISO, days) {
+  const d = new Date(startISO + 'T00:00:00');
+  d.setDate(d.getDate() + days - 1);
+  return toISO(d);
+}
 
 function generateRecurringDates(start, end, weekdaySet) {
   if (!start || !end || !weekdaySet.size) return [];
@@ -38,8 +51,14 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
   const [specificDates, setSpecificDates] = useState(initialDates.length > 1 ? initialDates : []);
   const [dateToAdd, setDateToAdd] = useState('');
   const [recurStart, setRecurStart] = useState(initialDates[0] || '');
-  const [recurEnd, setRecurEnd] = useState('');
+  const [recurDuration, setRecurDuration] = useState(30);
   const [recurDays, setRecurDays] = useState(new Set());
+
+  const switchDateMode = (k) => {
+    setDateMode(k);
+    if (k === 'recurring' && !recurStart) setRecurStart(today);
+    setErrors(e => ({ ...e, dates: undefined }));
+  };
 
   const [form, setForm] = useState({
     fromCity:        initialData?.fromCity        || '',
@@ -60,6 +79,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
 
+  const recurEnd = recurStart ? addDaysISO(recurStart, recurDuration) : '';
   const recurringDates = dateMode === 'recurring' ? generateRecurringDates(recurStart, recurEnd, recurDays) : [];
 
   const addSpecificDate = () => {
@@ -92,7 +112,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
     if (!form.fromCity.trim())  e.fromCity = 'Required';
     if (!form.toCity.trim())    e.toCity   = 'Required';
     const dates = resolveDates();
-    if (!dates.length) e.dates = dateMode === 'recurring' ? 'Pick a date range and at least one day' : 'Required';
+    if (!dates.length) e.dates = dateMode === 'recurring' ? 'Pick at least one day of the week' : 'Required';
     if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Must be > 0';
     if (form.pricePerKg === '' || +form.pricePerKg < 0)     e.pricePerKg      = 'Required';
     setErrors(e);
@@ -141,30 +161,34 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
           <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
         </div>
 
-        <div className="px-5 py-4 space-y-4">
-          <Field label="Pickup City & Station" error={errors.fromCity}>
-            <StationSelect
-              cityValue={form.fromCity}   stationValue={form.fromStation}
-              onCityChange={v => set('fromCity', v)}
-              onStationChange={v => set('fromStation', v)}
-              cityPlaceholder="Delhi"    stationPlaceholder="Which station?"
-            />
-          </Field>
+        <div className="px-5 py-4 space-y-5">
+          <div className="space-y-4">
+            <SectionHeader icon={Route} label="Route" />
+            <Field label="Pickup City & Station" error={errors.fromCity}>
+              <StationSelect
+                cityValue={form.fromCity}   stationValue={form.fromStation}
+                onCityChange={v => set('fromCity', v)}
+                onStationChange={v => set('fromStation', v)}
+                cityPlaceholder="Delhi"    stationPlaceholder="Which station?"
+              />
+            </Field>
 
-          <Field label="Destination City" error={errors.toCity}>
-            <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" />
-          </Field>
+            <Field label="Destination City" error={errors.toCity}>
+              <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" />
+            </Field>
+          </div>
 
-          <Field label="Travel Date(s)" error={errors.dates}
-            hint="Regular traveller? Cover several dates in one post">
-            <div className="flex gap-1.5 mb-2">
+          <div className="space-y-3 pt-4 border-t border-stone-100">
+            <SectionHeader icon={CalendarDays} label="When are you travelling?" />
+
+            <div className="flex gap-1.5 flex-wrap">
               {[
-                { k: 'single',    label: 'One date',  icon: null },
-                { k: 'specific',  label: 'Pick dates', icon: CalendarDays },
-                { k: 'recurring', label: 'Recurring',  icon: Repeat },
+                { k: 'single',    label: 'One date',        icon: null },
+                { k: 'specific',  label: 'Pick a few dates', icon: CalendarDays },
+                { k: 'recurring', label: 'Regular traveller', icon: Repeat },
               ].map(({ k, label, icon: TabIcon }) => (
-                <button key={k} type="button" onClick={() => setDateMode(k)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                <button key={k} type="button" onClick={() => switchDateMode(k)}
+                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
                     dateMode === k
                       ? 'bg-orange-500 text-white border-orange-500'
                       : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
@@ -175,153 +199,198 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
             </div>
 
             {dateMode === 'single' && (
-              <input type="date" className="input-field" min={today} value={singleDate}
-                onChange={e => { setSingleDate(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+              <Field error={errors.dates}>
+                <input type="date" className="input-field" min={today} value={singleDate}
+                  onChange={e => { setSingleDate(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+              </Field>
             )}
 
             {dateMode === 'specific' && (
-              <div className="space-y-2">
-                <div className="flex gap-2">
-                  <input type="date" className="input-field flex-1" min={today} value={dateToAdd}
-                    onChange={e => setDateToAdd(e.target.value)} />
-                  <button type="button" onClick={addSpecificDate}
-                    className="btn-secondary px-3 flex items-center gap-1 shrink-0">
-                    <Plus size={14} /> Add
-                  </button>
-                </div>
-                {specificDates.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5">
-                    {specificDates.map(d => (
-                      <span key={d} className="flex items-center gap-1 text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 pl-2 pr-1 py-1 rounded-lg">
-                        {new Date(d + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })}
-                        <button type="button" onClick={() => removeSpecificDate(d)}
-                          className="w-4 h-4 rounded-full hover:bg-orange-200 flex items-center justify-center">
-                          <X size={10} />
-                        </button>
-                      </span>
-                    ))}
+              <Field error={errors.dates} hint="Add each date you plan to travel">
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input type="date" className="input-field flex-1" min={today} value={dateToAdd}
+                      onChange={e => setDateToAdd(e.target.value)} />
+                    <button type="button" onClick={addSpecificDate}
+                      className="btn-secondary px-3 flex items-center gap-1 shrink-0">
+                      <Plus size={14} /> Add
+                    </button>
                   </div>
-                )}
-                <p className="text-[10px] text-stone-400">{specificDates.length} date{specificDates.length === 1 ? '' : 's'} selected</p>
-              </div>
+                  {specificDates.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {specificDates.map(d => (
+                        <span key={d} className="flex items-center gap-1 text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 pl-2 pr-1 py-1 rounded-lg">
+                          {fmtShort(d)}
+                          <button type="button" onClick={() => removeSpecificDate(d)}
+                            className="w-4 h-4 rounded-full hover:bg-orange-200 flex items-center justify-center">
+                            <X size={10} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <p className="text-[10px] text-stone-400">
+                    {specificDates.length} of up to {MAX_DATES} dates selected
+                  </p>
+                </div>
+              </Field>
             )}
 
             {dateMode === 'recurring' && (
+              <Field error={errors.dates} hint="For commuters & regular travellers — post once, cover weeks">
+                <div className="space-y-3 bg-stone-50 border border-stone-100 rounded-2xl p-3">
+                  <div>
+                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">Starting from</p>
+                    <input type="date" className="input-field" min={today} value={recurStart}
+                      onChange={e => { setRecurStart(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">Repeat for the next</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      {DURATIONS.map(({ days, label }) => (
+                        <button key={days} type="button" onClick={() => setRecurDuration(days)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                            recurDuration === days
+                              ? 'bg-orange-500 text-white border-orange-500'
+                              : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">On these days</p>
+                    <div className="flex gap-1 flex-wrap">
+                      {WEEKDAYS.map(({ i, label }) => (
+                        <button key={i} type="button" onClick={() => toggleRecurDay(i)}
+                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
+                            recurDays.has(i)
+                              ? 'bg-orange-500 text-white border-orange-500'
+                              : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
+                          }`}>
+                          {label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {recurringDates.length > 0 && (
+                    <div className="bg-white border border-orange-100 rounded-xl p-2.5">
+                      <p className="text-[10px] font-bold text-orange-700 mb-1.5">
+                        {recurringDates.length} date{recurringDates.length === 1 ? '' : 's'} will be posted
+                        {recurringDates.length >= MAX_DATES && ' (capped)'}
+                      </p>
+                      <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
+                        {recurringDates.map(d => (
+                          <span key={d} className="text-[10px] font-semibold bg-orange-50 border border-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md">
+                            {fmtShort(d)}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Field>
+            )}
+          </div>
+
+          <div className="space-y-4 pt-4 border-t border-stone-100">
+            <SectionHeader icon={Compass} label="Transport" />
+
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Departure time" hint="When you leave">
+                <div className="relative">
+                  <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                  <input type="time" className="input-field pl-8" value={form.departureTime}
+                    onChange={e => set('departureTime', e.target.value)} />
+                </div>
+              </Field>
+              <Field label="Expected arrival" hint="At destination">
+                <div className="relative">
+                  <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
+                  <input type="time" className="input-field pl-8" value={form.arrivalTime}
+                    onChange={e => set('arrivalTime', e.target.value)} />
+                </div>
+              </Field>
+            </div>
+
+            <Field label="Transport Mode">
+              <div className="flex gap-2 flex-wrap">
+                {TRANSPORT_MODES.map(m => (
+                  <button key={m} onClick={() => set('transportMode', m)} type="button"
+                    className={`px-3.5 py-1.5 rounded-xl text-sm font-medium border transition-all capitalize flex items-center gap-1.5 ${
+                      form.transportMode === m
+                        ? 'bg-orange-500 text-white border-orange-500'
+                        : 'bg-white text-stone-600 border-stone-200 hover:border-orange-300'
+                    }`}>
+                    <span>{MODE_EMOJI[m]}</span> {m}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            {/* PNR / Flight number — optional but builds trust */}
+            {(form.transportMode === 'train') && (
               <div className="space-y-2">
-                <div className="grid grid-cols-2 gap-2">
-                  <input type="date" className="input-field" min={today} value={recurStart}
-                    placeholder="From" onChange={e => setRecurStart(e.target.value)} />
-                  <input type="date" className="input-field" min={recurStart || today} value={recurEnd}
-                    placeholder="To" onChange={e => setRecurEnd(e.target.value)} />
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  {WEEKDAYS.map(({ i, label }) => (
-                    <button key={i} type="button" onClick={() => toggleRecurDay(i)}
-                      className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                        recurDays.has(i)
-                          ? 'bg-orange-500 text-white border-orange-500'
-                          : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
-                      }`}>
-                      {label}
-                    </button>
-                  ))}
-                </div>
-                {recurringDates.length > 0 && (
-                  <p className="text-[10px] text-stone-500">
-                    Creates <span className="font-bold text-orange-600">{recurringDates.length}</span> date{recurringDates.length === 1 ? '' : 's'}
-                    {recurringDates.length >= MAX_DATES && ' (capped)'}
-                  </p>
+                <Field label="🎫 PNR Number (optional — builds trust)"
+                  hint="Senders can verify your ticket on the official NTES site">
+                  <input className="input-field tracking-widest font-mono" placeholder="e.g. 4521637890"
+                    maxLength={10} inputMode="numeric"
+                    value={form.pnrNumber}
+                    onChange={e => set('pnrNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} />
+                </Field>
+                <Field label="🚂 Train Number (optional)"
+                  hint="e.g. 12301 for Howrah Rajdhani">
+                  <input className="input-field font-mono" placeholder="e.g. 12301"
+                    maxLength={6} inputMode="numeric"
+                    value={form.trainNumber}
+                    onChange={e => set('trainNumber', e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                </Field>
+                {form.pnrNumber.length === 10 && (
+                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
+                    <span className="text-emerald-500 text-sm">✓</span>
+                    <p className="text-[11px] text-emerald-700 font-semibold">
+                      Senders will see a "Verify PNR" button — builds trust instantly!
+                    </p>
+                  </div>
                 )}
               </div>
             )}
-          </Field>
 
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Departure time" hint="When you leave">
-              <div className="relative">
-                <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                <input type="time" className="input-field pl-8" value={form.departureTime}
-                  onChange={e => set('departureTime', e.target.value)} />
-              </div>
-            </Field>
-            <Field label="Expected arrival" hint="At destination">
-              <div className="relative">
-                <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                <input type="time" className="input-field pl-8" value={form.arrivalTime}
-                  onChange={e => set('arrivalTime', e.target.value)} />
-              </div>
-            </Field>
+            {form.transportMode === 'flight' && (
+              <Field label="✈️ Flight Number (optional — builds trust)"
+                hint="e.g. AI302 or 6E456 · senders can track on Flightradar">
+                <input className="input-field font-mono uppercase" placeholder="e.g. AI302"
+                  maxLength={7}
+                  value={form.flightNumber}
+                  onChange={e => set('flightNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, 7))} />
+              </Field>
+            )}
           </div>
 
-          <Field label="Transport Mode">
-            <div className="flex gap-2 flex-wrap">
-              {TRANSPORT_MODES.map(m => (
-                <button key={m} onClick={() => set('transportMode', m)} type="button"
-                  className={`px-3.5 py-1.5 rounded-xl text-sm font-medium border transition-all capitalize flex items-center gap-1.5 ${
-                    form.transportMode === m
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : 'bg-white text-stone-600 border-stone-200 hover:border-orange-300'
-                  }`}>
-                  <span>{MODE_EMOJI[m]}</span> {m}
-                </button>
-              ))}
-            </div>
-          </Field>
+          <div className="space-y-4 pt-4 border-t border-stone-100">
+            <SectionHeader icon={Package} label="Capacity & Price" />
 
-          {/* PNR / Flight number — optional but builds trust */}
-          {(form.transportMode === 'train') && (
-            <div className="space-y-2">
-              <Field label="🎫 PNR Number (optional — builds trust)"
-                hint="Senders can verify your ticket on the official NTES site">
-                <input className="input-field tracking-widest font-mono" placeholder="e.g. 4521637890"
-                  maxLength={10} inputMode="numeric"
-                  value={form.pnrNumber}
-                  onChange={e => set('pnrNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} />
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Weight (kg)" error={errors.availableWeight}>
+                <input className="input-field" placeholder="10" type="number" min="0.1" step="0.1"
+                  value={form.availableWeight} onChange={e => set('availableWeight', e.target.value)} />
               </Field>
-              <Field label="🚂 Train Number (optional)"
-                hint="e.g. 12301 for Howrah Rajdhani">
-                <input className="input-field font-mono" placeholder="e.g. 12301"
-                  maxLength={6} inputMode="numeric"
-                  value={form.trainNumber}
-                  onChange={e => set('trainNumber', e.target.value.replace(/\D/g, '').slice(0, 6))} />
+              <Field label="Price/kg (₹)" error={errors.pricePerKg}>
+                <input className="input-field" placeholder="50" type="number" min="0"
+                  value={form.pricePerKg} onChange={e => set('pricePerKg', e.target.value)} />
               </Field>
-              {form.pnrNumber.length === 10 && (
-                <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                  <span className="text-emerald-500 text-sm">✓</span>
-                  <p className="text-[11px] text-emerald-700 font-semibold">
-                    Senders will see a "Verify PNR" button — builds trust instantly!
-                  </p>
-                </div>
-              )}
             </div>
-          )}
 
-          {form.transportMode === 'flight' && (
-            <Field label="✈️ Flight Number (optional — builds trust)"
-              hint="e.g. AI302 or 6E456 · senders can track on Flightradar">
-              <input className="input-field font-mono uppercase" placeholder="e.g. AI302"
-                maxLength={7}
-                value={form.flightNumber}
-                onChange={e => set('flightNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, 7))} />
-            </Field>
-          )}
-
-          <div className="grid grid-cols-2 gap-3">
-            <Field label="Weight (kg)" error={errors.availableWeight}>
-              <input className="input-field" placeholder="10" type="number" min="0.1" step="0.1"
-                value={form.availableWeight} onChange={e => set('availableWeight', e.target.value)} />
-            </Field>
-            <Field label="Price/kg (₹)" error={errors.pricePerKg}>
-              <input className="input-field" placeholder="50" type="number" min="0"
-                value={form.pricePerKg} onChange={e => set('pricePerKg', e.target.value)} />
+            <Field label="Notes (optional)">
+              <textarea className="input-field resize-none" rows={2}
+                placeholder="Train number, PNR, any extra info…"
+                value={form.notes} onChange={e => set('notes', e.target.value)} />
             </Field>
           </div>
-
-          <Field label="Notes (optional)">
-            <textarea className="input-field resize-none" rows={2}
-              placeholder="Train number, PNR, any extra info…"
-              value={form.notes} onChange={e => set('notes', e.target.value)} />
-          </Field>
         </div>
 
         <div className="px-5 pb-5 flex gap-3">
@@ -339,12 +408,22 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 function Field({ label, hint, error, children }) {
   return (
     <div>
-      <div className="flex items-baseline gap-1.5 mb-1.5">
-        <label className="block text-xs font-semibold text-stone-600">{label}</label>
-        {hint && <span className="text-[10px] text-stone-400">{hint}</span>}
-      </div>
+      {(label || hint) && (
+        <div className="flex items-baseline gap-1.5 mb-1.5">
+          {label && <label className="block text-xs font-semibold text-stone-600">{label}</label>}
+          {hint && <span className="text-[10px] text-stone-400">{hint}</span>}
+        </div>
+      )}
       {children}
       {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
     </div>
+  );
+}
+
+function SectionHeader({ icon: Icon, label }) {
+  return (
+    <p className="flex items-center gap-1.5 text-[10px] font-black text-stone-400 uppercase tracking-wide">
+      {Icon && <Icon size={11} />} {label}
+    </p>
   );
 }
