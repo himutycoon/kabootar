@@ -5,7 +5,7 @@ import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload, MapPin } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
-import CityInput from '../components/CityInput';
+import { CITIES_BY_STATE, INDIAN_STATES } from '../lib/cities';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -713,7 +713,7 @@ function AnnouncementsManager() {
 function CitiesManager() {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [form,    setForm]    = useState({ city: '', state: '' });
+  const [form,    setForm]    = useState({ state: '', city: '' });
   const [saving,  setSaving]  = useState(false);
 
   const load = async () => {
@@ -724,13 +724,17 @@ function CitiesManager() {
   };
   useEffect(() => { load(); }, []);
 
+  const addedCities = new Set(items.map(c => c.city.toLowerCase()));
+  // Cities already on the list are removed from the picker so you can't add one twice
+  const citiesForState = (CITIES_BY_STATE[form.state] || []).filter(c => !addedCities.has(c.toLowerCase()));
+
   const create = async () => {
-    if (!form.city.trim() || !form.state.trim()) { toast.error('City and state required'); return; }
+    if (!form.city.trim() || !form.state.trim()) { toast.error('Pick a state and city'); return; }
     setSaving(true);
     try {
       await api.post('/cities', form);
       toast.success(`${form.city} added`);
-      setForm({ city: '', state: '' });
+      setForm(f => ({ ...f, city: '' }));
       load();
     } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
     finally { setSaving(false); }
@@ -747,7 +751,7 @@ function CitiesManager() {
 
   return (
     <div className="space-y-5">
-      {/* Create form */}
+      {/* Create form — state → city dropdowns, sourced from the app's built-in city/state list */}
       <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
         <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Plus size={14} /> Add Launch City</h3>
         <p className="text-xs text-stone-400">
@@ -756,14 +760,46 @@ function CitiesManager() {
             : 'Trip & parcel posting is restricted to routes where BOTH cities are on this list.'}
         </p>
         <div className="grid grid-cols-2 gap-2">
-          <CityInput value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} placeholder="City" />
-          <input className="input-field" placeholder="State" value={form.state}
-            onChange={e => setForm(f => ({ ...f, state: e.target.value }))} />
+          <select className="input-field text-sm" value={form.state}
+            onChange={e => setForm({ state: e.target.value, city: '' })}>
+            <option value="">Select state…</option>
+            {INDIAN_STATES.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+          <select className="input-field text-sm" value={form.city} disabled={!form.state}
+            onChange={e => setForm(f => ({ ...f, city: e.target.value }))}>
+            <option value="">{form.state ? 'Select city…' : 'Pick a state first'}</option>
+            {citiesForState.map(c => <option key={c} value={c}>{c}</option>)}
+          </select>
         </div>
-        <button onClick={create} disabled={saving} className="btn-primary w-full text-sm">
+        <button onClick={create} disabled={saving || !form.city} className="btn-primary w-full text-sm">
           {saving ? 'Adding…' : 'Add City'}
         </button>
       </div>
+
+      {/* Reference: the full city/state list built into the app (source for the dropdowns above) */}
+      <details className="bg-white border border-stone-200 rounded-2xl p-4">
+        <summary className="font-bold text-stone-900 text-sm cursor-pointer select-none">
+          📖 Browse all {Object.values(CITIES_BY_STATE).flat().length} cities the app knows ({INDIAN_STATES.length} states)
+        </summary>
+        <div className="mt-3 space-y-3 max-h-72 overflow-y-auto pr-1">
+          {INDIAN_STATES.map(state => (
+            <div key={state}>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide mb-1">{state}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {CITIES_BY_STATE[state].map(c => (
+                  <span key={c} className={`text-[11px] px-2 py-0.5 rounded-full border ${
+                    addedCities.has(c.toLowerCase())
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-semibold'
+                      : 'bg-stone-50 border-stone-100 text-stone-500'
+                  }`}>
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </details>
 
       {/* Existing cities, grouped by state */}
       {loading ? (

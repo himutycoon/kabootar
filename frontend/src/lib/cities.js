@@ -79,3 +79,40 @@ export const POPULAR_CITIES_TOP = [
   'Delhi','Mumbai','Patna','Kolkata','Lucknow',
   'Bangalore','Hyderabad','Chennai','Darbhanga','Muzaffarpur',
 ];
+
+// Every city in INDIAN_CITIES, grouped by state — powers the admin
+// "Add Launch City" state → city dropdowns (cities.js is the source of truth).
+export const CITIES_BY_STATE = {
+  'Andhra Pradesh':    ['Guntur','Kakinada','Nellore','Tirupati','Vijayawada','Visakhapatnam'],
+  'Arunachal Pradesh':  ['Itanagar'],
+  'Assam':              ['Dibrugarh','Guwahati','Silchar'],
+  'Bihar':              ['Araria','Arrah','Begusarai','Bhagalpur','Buxar','Chapra','Darbhanga','Forbesganj','Gaya','Hajipur','Jehanabad','Katihar','Kishanganj','Madhubani','Motihari','Munger','Muzaffarpur','Nalanda','Nawada','Patna','Purnia','Samastipur','Sitamarhi','Siwan','Supaul'],
+  'Chandigarh':         ['Chandigarh'],
+  'Chhattisgarh':       ['Bhilai','Bilaspur','Raipur'],
+  'Delhi':              ['Delhi'],
+  'Goa':                ['Goa'],
+  'Gujarat':            ['Ahmedabad','Anand','Gandhinagar','Junagadh','Mehsana','Rajkot','Surat','Vadodara'],
+  'Haryana':            ['Ambala','Faridabad','Gurgaon','Hisar','Karnal','Rohtak'],
+  'Himachal Pradesh':   ['Dharamshala','Shimla'],
+  'Jammu & Kashmir':    ['Jammu','Srinagar'],
+  'Jharkhand':          ['Bokaro','Dhanbad','Jamshedpur','Ranchi'],
+  'Karnataka':          ['Bangalore','Belgaum','Gulbarga','Hubli','Mangalore','Mysore'],
+  'Kerala':             ['Kochi','Kozhikode','Palakkad','Thiruvananthapuram','Thrissur'],
+  'Ladakh':             ['Kargil','Leh'],
+  'Madhya Pradesh':     ['Bhopal','Gwalior','Indore','Jabalpur'],
+  'Maharashtra':        ['Aurangabad','Kolhapur','Latur','Mumbai','Nagpur','Nanded','Nashik','Pune','Solapur','Thane'],
+  'Manipur':            ['Imphal'],
+  'Meghalaya':          ['Shillong'],
+  'Mizoram':            ['Aizawl'],
+  'Nagaland':           ['Kohima'],
+  'Odisha':             ['Bhubaneswar','Cuttack','Rourkela'],
+  'Punjab':             ['Amritsar','Jalandhar','Ludhiana','Patiala'],
+  'Rajasthan':          ['Ajmer','Bikaner','Jaipur','Jodhpur','Kota','Udaipur'],
+  'Tamil Nadu':         ['Chennai','Coimbatore','Madurai','Salem','Tiruchirappalli','Tiruvallur'],
+  'Telangana':          ['Hyderabad','Warangal'],
+  'Uttar Pradesh':      ['Agra','Aligarh','Bareilly','Ghaziabad','Gorakhpur','Kanpur','Lucknow','Mathura','Meerut','Noida','Prayagraj','Varanasi'],
+  'Uttarakhand':        ['Dehradun','Haridwar','Rishikesh'],
+  'West Bengal':        ['Asansol','Durgapur','Kolkata','Siliguri'],
+};
+
+export const INDIAN_STATES = Object.keys(CITIES_BY_STATE).sort();
