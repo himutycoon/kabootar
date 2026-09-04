@@ -23,6 +23,42 @@ router.post('/promote', protect, async (req, res) => {
   }
 });
 
+// GET /api/admin/stats — overview counts for the admin dashboard
+router.get('/stats', adminOnly, async (req, res) => {
+  try {
+    const Trip = require('../models/Trip');
+    const Parcel = require('../models/Parcel');
+    const Report = require('../models/Report');
+    const ServiceCity = require('../models/ServiceCity');
+    const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+    const sevenDaysAgo = new Date(); sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    const [
+      totalUsers, verifiedUsers, pendingKyc, rejectedKyc, bannedUsers, newUsers7d, adminCount,
+      activeTrips, openParcels, pendingReports, launchCities,
+    ] = await Promise.all([
+      User.countDocuments({}),
+      User.countDocuments({ kycStatus: 'verified' }),
+      User.countDocuments({ kycStatus: 'pending' }),
+      User.countDocuments({ kycStatus: 'rejected' }),
+      User.countDocuments({ banned: true }),
+      User.countDocuments({ createdAt: { $gte: sevenDaysAgo } }),
+      User.countDocuments({ role: 'admin' }),
+      Trip.countDocuments({ status: 'active', dates: { $gte: startOfToday } }),
+      Parcel.countDocuments({ status: 'open' }),
+      Report.countDocuments({ status: 'pending' }),
+      ServiceCity.countDocuments({}),
+    ]);
+
+    res.json({
+      totalUsers, verifiedUsers, pendingKyc, rejectedKyc, bannedUsers, newUsers7d, adminCount,
+      activeTrips, openParcels, pendingReports, launchCities,
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // GET /api/admin/kyc — list users with pending KYC
 router.get('/kyc', adminOnly, async (req, res) => {
   try {
@@ -36,27 +72,104 @@ router.get('/kyc', adminOnly, async (req, res) => {
   }
 });
 
-// GET /api/admin/users — list all users (paginated)
+// GET /api/admin/users — list all users (paginated, filterable, sortable)
+const USER_SORTS = {
+  newest: { createdAt: -1 },
+  oldest: { createdAt: 1 },
+  rating: { rating: -1 },
+  trips:  { tripsCompleted: -1 },
+};
 router.get('/users', adminOnly, async (req, res) => {
   try {
     const page = parseInt(req.query.page) || 1;
     const limit = 30;
-    const search = req.query.search || '';
+    const { search = '', kycStatus, role, banned, sort } = req.query;
 
-    const filter = search
-      ? { $or: [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }] }
-      : {};
+    const filter = {};
+    if (search) filter.$or = [{ name: { $regex: search, $options: 'i' } }, { phone: { $regex: search, $options: 'i' } }];
+    if (kycStatus && kycStatus !== 'all') filter.kycStatus = kycStatus;
+    if (role && role !== 'all') filter.role = role;
+    if (banned === 'true')  filter.banned = true;
+    if (banned === 'false') filter.banned = { $ne: true };
 
     const [users, total] = await Promise.all([
       User.find(filter)
-        .select('name phone profileImage role kycStatus kycDocumentUrl selfieUrl kycSubmittedAt kycApprovedAt kycRejectedReason rating totalRatings tripsCompleted city bio frequentRoute isPhoneVerified createdAt')
-        .sort({ createdAt: -1 })
+        .select('name phone profileImage role kycStatus kycDocumentUrl selfieUrl kycSubmittedAt kycApprovedAt kycRejectedReason rating totalRatings tripsCompleted city bio frequentRoute isPhoneVerified banned bannedReason bannedAt createdAt')
+        .sort(USER_SORTS[sort] || USER_SORTS.newest)
         .skip((page - 1) * limit)
         .limit(limit),
       User.countDocuments(filter),
     ]);
 
     res.json({ users, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/admin/users/:id/activity — recent trips/parcels/reports for the detail view
+router.get('/users/:id/activity', adminOnly, async (req, res) => {
+  try {
+    const Trip = require('../models/Trip');
+    const Parcel = require('../models/Parcel');
+    const Report = require('../models/Report');
+    const [trips, parcels, reportsAgainst] = await Promise.all([
+      Trip.find({ userId: req.params.id }).sort({ createdAt: -1 }).limit(10),
+      Parcel.find({ $or: [{ userId: req.params.id }, { travelerId: req.params.id }] }).sort({ createdAt: -1 }).limit(10),
+      Report.find({ reportedUser: req.params.id }).sort({ createdAt: -1 }).limit(10).populate('reporter', 'name'),
+    ]);
+    res.json({ trips, parcels, reportsAgainst });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/ban
+router.post('/users/:id/ban', adminOnly, async (req, res) => {
+  try {
+    if (req.params.id === String(req.user._id)) return res.status(400).json({ message: "You can't ban yourself" });
+    const target = await User.findById(req.params.id);
+    if (!target) return res.status(404).json({ message: 'User not found' });
+    if (target.role === 'admin') return res.status(400).json({ message: "Can't ban another admin" });
+
+    target.banned = true;
+    target.bannedReason = req.body.reason || '';
+    target.bannedAt = new Date();
+    await target.save();
+
+    req.io.to(String(target._id)).emit('account_banned', { reason: target.bannedReason });
+    res.json({ user: target, message: 'User banned' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/users/:id/unban
+router.post('/users/:id/unban', adminOnly, async (req, res) => {
+  try {
+    const target = await User.findByIdAndUpdate(
+      req.params.id,
+      { banned: false, bannedReason: '', bannedAt: null },
+      { new: true }
+    );
+    if (!target) return res.status(404).json({ message: 'User not found' });
+    res.json({ user: target, message: 'User unbanned' });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// PATCH /api/admin/users/:id/role — promote/demote admin
+router.patch('/users/:id/role', adminOnly, async (req, res) => {
+  try {
+    const { role } = req.body;
+    if (!['user', 'admin'].includes(role)) return res.status(400).json({ message: 'Invalid role' });
+    if (req.params.id === String(req.user._id) && role === 'user') {
+      return res.status(400).json({ message: "You can't demote yourself" });
+    }
+    const target = await User.findByIdAndUpdate(req.params.id, { role }, { new: true });
+    if (!target) return res.status(404).json({ message: 'User not found' });
+    res.json({ user: target, message: `Role updated to ${role}` });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

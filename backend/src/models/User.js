@@ -45,6 +45,9 @@ const userSchema = new mongoose.Schema(
     blockedUsers:        [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
     pendingDeletion:     { type: Boolean, default: false },
     deletionRequestedAt: { type: Date, default: null },
+    banned:       { type: Boolean, default: false },
+    bannedReason: { type: String, default: '' },
+    bannedAt:     { type: Date },
   },
   { timestamps: true }
 );

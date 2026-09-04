@@ -12,6 +12,14 @@ const protect = async (req, res, next) => {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     const user = await User.findById(decoded.id).select('-__v');
     if (!user) return res.status(401).json({ message: 'User not found' });
+    if (user.banned) {
+      return res.status(403).json({
+        message: user.bannedReason
+          ? `Your account has been suspended: ${user.bannedReason}`
+          : 'Your account has been suspended. Contact support if you think this is a mistake.',
+        banned: true,
+      });
+    }
 
     // 3-day soft delete — if user hasn't logged in within 3 days of requesting deletion, delete now
     if (user.pendingDeletion && user.deletionRequestedAt) {

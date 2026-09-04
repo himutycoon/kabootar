@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload, MapPin } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload, MapPin, LayoutDashboard, Ban, ShieldCheck, Package, ArrowUpDown, UserPlus } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 import { CITIES_BY_STATE, INDIAN_STATES } from '../lib/cities';
 
@@ -74,7 +74,7 @@ function PromoteForm({ onPromoted }) {
 // ── Main dashboard ────────────────────────────────────────────────────────────
 function AdminDashboard() {
   const navigate  = useNavigate();
-  const [tab,     setTab]     = useState('kyc');
+  const [tab,     setTab]     = useState('overview');
   const [purging, setPurging] = useState(false);
 
   const purgeTestData = async () => {
@@ -116,41 +116,84 @@ function AdminDashboard() {
         </button>
       </div>
 
-      {/* Tabs */}
-      <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mx-4 mt-4">
-        <button onClick={() => setTab('kyc')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'kyc' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Clock size={12} /> KYC
-        </button>
-        <button onClick={() => setTab('posts')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'posts' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <BookOpen size={12} /> Posts
-        </button>
-        <button onClick={() => setTab('announcements')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'announcements' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Megaphone size={12} /> Alerts
-        </button>
-        <button onClick={() => setTab('reports')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'reports' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Flag size={12} /> Reports
-        </button>
-        <button onClick={() => setTab('users')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <Users size={12} /> Users
-        </button>
-        <button onClick={() => setTab('cities')}
-          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'cities' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          <MapPin size={12} /> Cities
-        </button>
+      {/* Tabs — horizontally scrollable so it holds up as more sections get added */}
+      <div className="flex gap-1 bg-stone-100 rounded-xl p-1 mx-4 mt-4 overflow-x-auto">
+        {[
+          { k: 'overview',      label: 'Overview', icon: LayoutDashboard },
+          { k: 'kyc',           label: 'KYC',       icon: Clock },
+          { k: 'users',         label: 'Users',     icon: Users },
+          { k: 'reports',       label: 'Reports',   icon: Flag },
+          { k: 'cities',        label: 'Cities',    icon: MapPin },
+          { k: 'announcements', label: 'Alerts',    icon: Megaphone },
+          { k: 'posts',         label: 'Posts',     icon: BookOpen },
+        ].map(({ k, label, icon: TabIcon }) => (
+          <button key={k} onClick={() => setTab(k)}
+            className={`shrink-0 px-3.5 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === k ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+            {TabIcon && <TabIcon size={12} />} {label}
+          </button>
+        ))}
       </div>
 
       <div className="px-4 py-4">
+        {tab === 'overview'      && <Overview onNavigate={setTab} />}
         {tab === 'kyc'           && <KycQueue />}
         {tab === 'posts'         && <PostsManager />}
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
         {tab === 'cities'        && <CitiesManager />}
+      </div>
+    </div>
+  );
+}
+
+// ── Overview dashboard ─────────────────────────────────────────────────────────
+function Overview({ onNavigate }) {
+  const [stats,   setStats]   = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.get('/admin/stats')
+      .then(r => setStats(r.data))
+      .catch(() => toast.error('Failed to load stats'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) return (
+    <div className="grid grid-cols-2 gap-3">
+      {Array.from({ length: 8 }).map((_, i) => <div key={i} className="bg-white border border-stone-200 rounded-2xl h-24 animate-pulse" />)}
+    </div>
+  );
+  if (!stats) return null;
+
+  const cards = [
+    { label: 'Total Users',    value: stats.totalUsers,     icon: Users,       grad: 'from-blue-500 to-indigo-500',   tab: 'users' },
+    { label: 'KYC Verified',   value: stats.verifiedUsers,  icon: ShieldCheck, grad: 'from-emerald-500 to-teal-500',  tab: 'users' },
+    { label: 'Pending KYC',    value: stats.pendingKyc,     icon: Clock,       grad: 'from-amber-500 to-orange-500',  tab: 'kyc' },
+    { label: 'Banned',         value: stats.bannedUsers,    icon: Ban,         grad: 'from-stone-500 to-stone-700',   tab: 'users' },
+    { label: 'Active Trips',   value: stats.activeTrips,    icon: Sparkles,    grad: 'from-orange-500 to-amber-500',  tab: null },
+    { label: 'Open Parcels',   value: stats.openParcels,    icon: Package,     grad: 'from-sky-500 to-blue-500',      tab: null },
+    { label: 'Pending Reports',value: stats.pendingReports, icon: Flag,        grad: 'from-red-500 to-rose-500',      tab: 'reports' },
+    { label: 'Launch Cities',  value: stats.launchCities,   icon: MapPin,      grad: 'from-teal-500 to-emerald-500',  tab: 'cities' },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-3">
+        {cards.map(c => (
+          <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
+            disabled={!c.tab}
+            className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${c.grad} ${c.tab ? 'active:scale-[0.97] cursor-pointer' : 'cursor-default'} transition-transform`}>
+            <c.icon size={16} className="opacity-80 mb-2" />
+            <p className="text-2xl font-black leading-none">{c.value}</p>
+            <p className="text-[11px] font-semibold opacity-90 mt-1">{c.label}</p>
+          </button>
+        ))}
+      </div>
+
+      <div className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-stone-500">
+        <span>👋 {stats.newUsers7d} new signup{stats.newUsers7d !== 1 ? 's' : ''} this week</span>
+        <span>🛡️ {stats.adminCount} admin{stats.adminCount !== 1 ? 's' : ''} · ❌ {stats.rejectedKyc} rejected</span>
       </div>
     </div>
   );
@@ -840,16 +883,66 @@ const KYC_BADGE = {
   rejected: { cls: 'bg-red-100 text-red-600',       label: '✗ Rejected' },
 };
 
-function UserCard({ u }) {
+function UserCard({ u, currentUserId, onUpdate }) {
   const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [banning, setBanning] = useState(false);
+  const [banReason, setBanReason] = useState('');
+  const [activity, setActivity] = useState(null);
+  const [activityLoading, setActivityLoading] = useState(false);
   const badge = KYC_BADGE[u.kycStatus] || KYC_BADGE.none;
+  const isSelf = u._id === currentUserId;
+
+  const toggleOpen = () => {
+    const next = !open;
+    setOpen(next);
+    if (next && !activity && !activityLoading) {
+      setActivityLoading(true);
+      api.get(`/admin/users/${u._id}/activity`)
+        .then(r => setActivity(r.data))
+        .catch(() => {})
+        .finally(() => setActivityLoading(false));
+    }
+  };
+
+  const ban = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/users/${u._id}/ban`, { reason: banReason });
+      toast.success('User banned');
+      onUpdate(data.user);
+      setBanning(false); setBanReason('');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to ban'); }
+    finally { setBusy(false); }
+  };
+
+  const unban = async () => {
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/users/${u._id}/unban`);
+      toast.success('User unbanned');
+      onUpdate(data.user);
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to unban'); }
+    finally { setBusy(false); }
+  };
+
+  const setRole = async (role) => {
+    if (!confirm(role === 'admin' ? `Make ${u.name} an admin?` : `Remove admin access from ${u.name}?`)) return;
+    setBusy(true);
+    try {
+      const { data } = await api.patch(`/admin/users/${u._id}/role`, { role });
+      toast.success(`Now ${role}`);
+      onUpdate(data.user);
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update role'); }
+    finally { setBusy(false); }
+  };
 
   return (
-    <div className="bg-white border border-stone-200 rounded-2xl overflow-hidden">
+    <div className={`bg-white border rounded-2xl overflow-hidden ${u.banned ? 'border-red-200' : 'border-stone-200'}`}>
       {/* Compact row — always visible */}
-      <button onClick={() => setOpen(v => !v)}
+      <button onClick={toggleOpen}
         className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-stone-50 transition-colors">
-        <div className="w-10 h-10 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center font-bold text-orange-500 shrink-0 border border-stone-100">
+        <div className={`w-10 h-10 rounded-full overflow-hidden bg-orange-50 flex items-center justify-center font-bold text-orange-500 shrink-0 border ${u.banned ? 'border-red-200 opacity-60' : 'border-stone-100'}`}>
           {u.profileImage
             ? <img src={u.profileImage} alt="" className="w-full h-full object-cover" />
             : <span className="text-sm">{u.name?.[0]?.toUpperCase()}</span>}
@@ -858,6 +951,7 @@ function UserCard({ u }) {
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className="text-sm font-bold text-stone-900 truncate">{u.name}</span>
             {u.role === 'admin' && <span className="text-[9px] bg-purple-100 text-purple-700 font-bold px-1.5 py-0.5 rounded-full">ADMIN</span>}
+            {u.banned && <span className="text-[9px] bg-red-100 text-red-600 font-bold px-1.5 py-0.5 rounded-full flex items-center gap-0.5"><Ban size={9} /> BANNED</span>}
             <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${badge.cls}`}>{badge.label}</span>
           </div>
           <p className="text-[11px] text-stone-400 mt-0.5 truncate">{u.phone} · {u.city || 'No city'}</p>
@@ -871,6 +965,56 @@ function UserCard({ u }) {
       {/* Expanded full profile */}
       {open && (
         <div className="border-t border-stone-100 px-4 py-4 space-y-4 animate-fade-in">
+
+          {/* Admin controls */}
+          <div className="bg-stone-50 border border-stone-100 rounded-xl p-3 space-y-2">
+            <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide">Controls</p>
+            {u.banned ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-red-600">{u.bannedReason ? `Banned: "${u.bannedReason}"` : 'Banned'}</p>
+                <button onClick={unban} disabled={busy}
+                  className="shrink-0 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-emerald-500 text-white disabled:opacity-50">
+                  Unban
+                </button>
+              </div>
+            ) : banning ? (
+              <div className="space-y-2">
+                <textarea className="input-field resize-none text-xs" rows={2}
+                  placeholder="Ban reason (optional, shown to user)"
+                  value={banReason} onChange={e => setBanReason(e.target.value)} />
+                <div className="flex gap-2">
+                  <button onClick={ban} disabled={busy}
+                    className="flex-1 text-[11px] font-bold px-3 py-1.5 rounded-lg bg-red-500 text-white disabled:opacity-50">
+                    {busy ? 'Banning…' : 'Confirm Ban'}
+                  </button>
+                  <button onClick={() => { setBanning(false); setBanReason(''); }} className="btn-secondary px-3 text-[11px]">Cancel</button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex gap-2 flex-wrap">
+                {!isSelf && u.role !== 'admin' && (
+                  <button onClick={() => setBanning(true)} disabled={busy}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-red-50 text-red-500 border border-red-200 flex items-center gap-1 disabled:opacity-50">
+                    <Ban size={11} /> Ban User
+                  </button>
+                )}
+                {!isSelf && (
+                  u.role === 'admin' ? (
+                    <button onClick={() => setRole('user')} disabled={busy}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-stone-200 text-stone-600 flex items-center gap-1 disabled:opacity-50">
+                      Remove Admin
+                    </button>
+                  ) : (
+                    <button onClick={() => setRole('admin')} disabled={busy}
+                      className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-purple-50 text-purple-600 border border-purple-200 flex items-center gap-1 disabled:opacity-50">
+                      <UserPlus size={11} /> Make Admin
+                    </button>
+                  )
+                )}
+                {isSelf && <p className="text-[11px] text-stone-400">This is you — no self actions</p>}
+              </div>
+            )}
+          </div>
 
           {/* Profile details */}
           <div className="grid grid-cols-2 gap-2 text-xs">
@@ -937,33 +1081,111 @@ function UserCard({ u }) {
               </a>
             </div>
           )}
+
+          {/* Activity — recent trips, parcels, reports filed against this user */}
+          <div>
+            <p className="text-[10px] font-bold text-stone-400 uppercase tracking-wide mb-2">Recent Activity</p>
+            {activityLoading ? (
+              <p className="text-xs text-stone-400">Loading…</p>
+            ) : !activity ? (
+              <p className="text-xs text-stone-400">—</p>
+            ) : (
+              <div className="space-y-3">
+                {activity.trips.length === 0 && activity.parcels.length === 0 && activity.reportsAgainst.length === 0 ? (
+                  <p className="text-xs text-stone-400">No trips, parcels, or reports yet</p>
+                ) : (
+                  <>
+                    {activity.trips.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-stone-400 mb-1">Trips ({activity.trips.length})</p>
+                        <div className="space-y-1">
+                          {activity.trips.map(t => (
+                            <p key={t._id} className="text-xs text-stone-700 bg-stone-50 rounded-lg px-2 py-1">
+                              {t.fromCity} → {t.toCity} · <span className="text-stone-400">{t.status}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {activity.parcels.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-stone-400 mb-1">Parcels ({activity.parcels.length})</p>
+                        <div className="space-y-1">
+                          {activity.parcels.map(p => (
+                            <p key={p._id} className="text-xs text-stone-700 bg-stone-50 rounded-lg px-2 py-1">
+                              {p.fromCity} → {p.toCity} · <span className="text-stone-400">{p.status}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {activity.reportsAgainst.length > 0 && (
+                      <div>
+                        <p className="text-[10px] text-red-400 mb-1">Reports against this user ({activity.reportsAgainst.length})</p>
+                        <div className="space-y-1">
+                          {activity.reportsAgainst.map(r => (
+                            <p key={r._id} className="text-xs text-red-600 bg-red-50 rounded-lg px-2 py-1">
+                              {REASON_LABEL[r.reason] || r.reason} — by {r.reporter?.name || 'unknown'} · <span className="text-red-400">{r.status}</span>
+                            </p>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>
   );
 }
 
+const KYC_FILTERS = [
+  { k: 'all',      label: 'All' },
+  { k: 'verified', label: '✓ Verified' },
+  { k: 'pending',  label: '⏳ Pending' },
+  { k: 'rejected', label: '✗ Rejected' },
+  { k: 'none',     label: 'Unverified' },
+];
+const SORT_OPTIONS = [
+  { k: 'newest', label: 'Newest first' },
+  { k: 'oldest', label: 'Oldest first' },
+  { k: 'rating', label: 'Top rated' },
+  { k: 'trips',  label: 'Most trips' },
+];
+
 function UserList() {
-  const [users, setUsers] = useState([]);
+  const { user: currentUser } = useAuth();
+  const [users,   setUsers]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState('');
-  const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, pages: 1 });
+  const [search,  setSearch]  = useState('');
+  const [page,    setPage]    = useState(1);
+  const [meta,    setMeta]    = useState({ total: 0, pages: 1 });
+  const [kycStatus, setKycStatus] = useState('all');
+  const [roleFilter, setRoleFilter] = useState('all');
+  const [bannedFilter, setBannedFilter] = useState('all');
+  const [sort, setSort] = useState('newest');
 
   const load = (pg = 1, q = search) => {
     setLoading(true);
-    api.get('/admin/users', { params: { page: pg, search: q } })
+    api.get('/admin/users', { params: {
+      page: pg, search: q, kycStatus, role: roleFilter, banned: bannedFilter, sort,
+    } })
       .then(r => { setUsers(r.data.users); setMeta({ total: r.data.total, pages: r.data.pages }); setPage(pg); })
       .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
   };
-  useEffect(() => { load(1); }, []);
+  useEffect(() => { load(1); }, [kycStatus, roleFilter, bannedFilter, sort]); // eslint-disable-line
 
   const handleSearch = (e) => {
     setSearch(e.target.value);
     if (!e.target.value.trim()) load(1, '');
   };
   const submitSearch = (e) => { e.preventDefault(); load(1, search); };
+
+  const updateUserInList = (updated) => setUsers(prev => prev.map(u => u._id === updated._id ? updated : u));
 
   return (
     <div className="space-y-3">
@@ -976,13 +1198,47 @@ function UserList() {
         <button type="submit" className="btn-primary px-4 text-sm">Search</button>
       </form>
 
-      <p className="text-xs text-stone-400">{meta.total} total users · tap a row to expand full profile</p>
+      {/* KYC status filter */}
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {KYC_FILTERS.map(f => (
+          <button key={f.k} onClick={() => setKycStatus(f.k)}
+            className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all ${kycStatus === f.k ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
+            {f.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Role / banned / sort */}
+      <div className="flex gap-1.5 flex-wrap items-center">
+        <select className="input-field text-[11px] py-1.5 w-auto" value={roleFilter} onChange={e => setRoleFilter(e.target.value)}>
+          <option value="all">All roles</option>
+          <option value="user">Users only</option>
+          <option value="admin">Admins only</option>
+        </select>
+        <select className="input-field text-[11px] py-1.5 w-auto" value={bannedFilter} onChange={e => setBannedFilter(e.target.value)}>
+          <option value="all">All accounts</option>
+          <option value="false">Active only</option>
+          <option value="true">Banned only</option>
+        </select>
+        <div className="flex items-center gap-1 ml-auto">
+          <ArrowUpDown size={12} className="text-stone-400" />
+          <select className="input-field text-[11px] py-1.5 w-auto" value={sort} onChange={e => setSort(e.target.value)}>
+            {SORT_OPTIONS.map(s => <option key={s.k} value={s.k}>{s.label}</option>)}
+          </select>
+        </div>
+      </div>
+
+      <p className="text-xs text-stone-400">{meta.total} user{meta.total !== 1 ? 's' : ''} · tap a row to expand full profile</p>
 
       {loading ? (
         <div className="space-y-2">{[1,2,3,4].map(i => <div key={i} className="bg-white border border-stone-200 rounded-2xl p-3 animate-pulse h-16" />)}</div>
+      ) : users.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">No users match these filters</div>
       ) : (
         <div className="space-y-2">
-          {users.map(u => <UserCard key={u._id} u={u} />)}
+          {users.map(u => (
+            <UserCard key={u._id} u={u} currentUserId={currentUser?._id} onUpdate={updateUserInList} />
+          ))}
         </div>
       )}
 
