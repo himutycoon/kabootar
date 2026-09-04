@@ -1,8 +1,12 @@
 import { useState, useRef, useEffect } from "react";
 import { MapPin, CheckCircle } from "lucide-react";
-import { filterCities, isValidCity, POPULAR_CITIES_TOP } from "../lib/cities";
+import { filterFromList, isValidCity, INDIAN_CITIES, POPULAR_CITIES_TOP } from "../lib/cities";
 
-export default function CityInput({ value, onChange, placeholder, className = "" }) {
+// Pass `cityList` to restrict suggestions/validation to a smaller set
+// (e.g. an admin-configured allowed-cities list) — defaults to the full list.
+export default function CityInput({ value, onChange, placeholder, className = "", cityList = null }) {
+  const list = cityList && cityList.length ? cityList : INDIAN_CITIES;
+  const popular = cityList && cityList.length ? cityList.slice(0, 10) : POPULAR_CITIES_TOP;
   const [suggestions, setSuggestions] = useState([]);
   const [open,        setOpen]        = useState(false);
   const [touched,     setTouched]     = useState(false);
@@ -21,10 +25,10 @@ export default function CityInput({ value, onChange, placeholder, className = ""
     setTouched(true);
     if (!val.trim()) {
       // Empty → show popular cities
-      setSuggestions(POPULAR_CITIES_TOP);
+      setSuggestions(popular);
       setOpen(true);
     } else {
-      const results = filterCities(val);
+      const results = filterFromList(val, list);
       setSuggestions(results);
       setOpen(results.length > 0);
     }
@@ -33,7 +37,7 @@ export default function CityInput({ value, onChange, placeholder, className = ""
   const handleFocus = () => {
     setTouched(true);
     if (!value) {
-      setSuggestions(POPULAR_CITIES_TOP);
+      setSuggestions(popular);
       setOpen(true);
     } else if (suggestions.length > 0) {
       setOpen(true);
@@ -45,7 +49,7 @@ export default function CityInput({ value, onChange, placeholder, className = ""
     setTimeout(() => {
       setOpen(false);
       // If user typed something not in the list, clear it
-      if (value && !isValidCity(value)) {
+      if (value && !isValidCity(value, list)) {
         onChange('');
         setTouched(false);
       }
@@ -59,7 +63,7 @@ export default function CityInput({ value, onChange, placeholder, className = ""
     setTouched(true);
   };
 
-  const valid = value && isValidCity(value);
+  const valid = value && isValidCity(value, list);
   const invalid = touched && value && !valid;
 
   return (

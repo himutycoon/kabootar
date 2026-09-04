@@ -4,6 +4,7 @@ const Parcel = require('../models/Parcel');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { upload, getFileUrl } = require('../utils/upload');
 const { notify } = require('../utils/notifications');
+const { assertRouteAllowed } = require('../utils/serviceCities');
 
 // GET /api/parcels — search open parcels (requires from or to; returns empty otherwise)
 router.get('/', optionalAuth, async (req, res) => {
@@ -70,6 +71,8 @@ router.post('/', protect, async (req, res) => {
       return res.status(429).json({ message: 'You already have 5 open parcel requests. Cancel one before posting another.' });
     }
 
+    await assertRouteAllowed(fromCity, toCity);
+
     const parcel = await Parcel.create({
       userId: req.user._id,
       fromCity,
@@ -101,7 +104,7 @@ router.post('/', protect, async (req, res) => {
 
     res.status(201).json({ parcel });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 });
 
@@ -233,6 +236,9 @@ router.patch('/:id', protect, async (req, res) => {
 
     if (isOwner && parcel.status === 'open') {
       // Owner can fully edit while parcel is still open (not yet accepted by anyone)
+      if (req.body.fromCity || req.body.toCity) {
+        await assertRouteAllowed(req.body.fromCity || parcel.fromCity, req.body.toCity || parcel.toCity);
+      }
       const ownerFields = ['fromCity', 'toCity', 'weight', 'itemType', 'description', 'pickupStation', 'dropStation', 'offeredPrice'];
       for (const key of ownerFields) {
         if (req.body[key] !== undefined) parcel[key] = req.body[key];
@@ -247,7 +253,7 @@ router.patch('/:id', protect, async (req, res) => {
     await parcel.save();
     res.json({ parcel });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 });
 

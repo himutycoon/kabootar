@@ -1,10 +1,18 @@
-import { useState } from 'react';
+import { useState, Fragment } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat, Route, Package, Compass } from 'lucide-react';
+import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat, Route, Package, Compass, Check, ChevronLeft } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import { getTripDates } from '../lib/tripDates';
+import { useServiceArea } from '../context/ServiceAreaContext';
+
+const STEPS = [
+  { key: 'route',     label: 'Route',     icon: Route },
+  { key: 'when',      label: 'When',      icon: CalendarDays },
+  { key: 'transport', label: 'Transport', icon: Compass },
+  { key: 'price',     label: 'Price',     icon: Package },
+];
 
 const TRANSPORT_MODES = ['train', 'flight', 'bus', 'car'];
 const MODE_EMOJI = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
@@ -45,6 +53,8 @@ function generateRecurringDates(start, end, weekdaySet) {
 export default function PostTripModal({ onClose, onSuccess, initialData = null, tripId = null }) {
   const isEdit = !!tripId;
   const initialDates = initialData ? getTripDates(initialData).map(toISO) : [];
+  const { cityNames, isRestricted } = useServiceArea();
+  const restrictedCities = isRestricted ? cityNames : null;
 
   const [dateMode, setDateMode] = useState(initialDates.length > 1 ? 'specific' : 'single');
   const [singleDate, setSingleDate] = useState(initialDates[0] || '');
@@ -76,6 +86,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
   });
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
+  const [step, setStep]       = useState(0);
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
 
@@ -107,20 +118,36 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
     return recurringDates;
   };
 
-  const validate = () => {
+  const validateRoute = () => {
     const e = {};
     if (!form.fromCity.trim())  e.fromCity = 'Required';
     if (!form.toCity.trim())    e.toCity   = 'Required';
-    const dates = resolveDates();
-    if (!dates.length) e.dates = dateMode === 'recurring' ? 'Pick at least one day of the week' : 'Required';
-    if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Must be > 0';
-    if (form.pricePerKg === '' || +form.pricePerKg < 0)     e.pricePerKg      = 'Required';
-    setErrors(e);
-    return Object.keys(e).length === 0;
+    setErrors(er => ({ ...er, fromCity: e.fromCity, toCity: e.toCity }));
+    return !e.fromCity && !e.toCity;
   };
 
+  const validateWhen = () => {
+    const dates = resolveDates();
+    const err = dates.length ? undefined : (dateMode === 'recurring' ? 'Pick at least one day of the week' : 'Required');
+    setErrors(er => ({ ...er, dates: err }));
+    return !err;
+  };
+
+  const validatePrice = () => {
+    const e = {};
+    if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Must be > 0';
+    if (form.pricePerKg === '' || +form.pricePerKg < 0)      e.pricePerKg      = 'Required';
+    setErrors(er => ({ ...er, availableWeight: e.availableWeight, pricePerKg: e.pricePerKg }));
+    return !e.availableWeight && !e.pricePerKg;
+  };
+
+  const STEP_VALIDATORS = [validateRoute, validateWhen, () => true, validatePrice];
+  const goNext = () => { if (STEP_VALIDATORS[step]()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
+  const goBack = () => setStep(s => Math.max(s - 1, 0));
+
   const submit = async () => {
-    if (!validate()) return;
+    const ok = [validateRoute(), validateWhen(), validatePrice()].every(Boolean);
+    if (!ok) return;
     setLoading(true);
     try {
       const payload = {
@@ -161,24 +188,53 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
           <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
         </div>
 
-        <div className="px-5 py-4 space-y-5">
+        {/* ── Step progress bar ── */}
+        <div className="px-5 pt-4 pb-1 flex items-center">
+          {STEPS.map((s, i) => (
+            <Fragment key={s.key}>
+              <div className="flex flex-col items-center gap-1">
+                <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all ${
+                  i < step  ? 'bg-orange-500 border-orange-500 text-white'
+                  : i === step ? 'bg-white border-orange-500 text-orange-600'
+                  : 'bg-white border-stone-200 text-stone-300'
+                }`}>
+                  {i < step ? <Check size={13} /> : <s.icon size={13} />}
+                </div>
+                <span className={`text-[9px] font-semibold ${i <= step ? 'text-stone-600' : 'text-stone-300'}`}>{s.label}</span>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={`flex-1 h-0.5 mx-1 mb-4 rounded transition-all ${i < step ? 'bg-orange-500' : 'bg-stone-200'}`} />
+              )}
+            </Fragment>
+          ))}
+        </div>
+
+        <div className="px-5 py-4 space-y-4">
+          {step === 0 && (
           <div className="space-y-4">
-            <SectionHeader icon={Route} label="Route" />
+            {isRestricted && (
+              <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2">
+                Currently serving: <span className="font-semibold text-stone-700">{cityNames.join(', ')}</span>
+              </p>
+            )}
             <Field label="Pickup City & Station" error={errors.fromCity}>
               <StationSelect
                 cityValue={form.fromCity}   stationValue={form.fromStation}
                 onCityChange={v => set('fromCity', v)}
                 onStationChange={v => set('fromStation', v)}
                 cityPlaceholder="Delhi"    stationPlaceholder="Which station?"
+                cityList={restrictedCities}
               />
             </Field>
 
             <Field label="Destination City" error={errors.toCity}>
-              <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" />
+              <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" cityList={restrictedCities} />
             </Field>
           </div>
+          )}
 
-          <div className="space-y-3 pt-4 border-t border-stone-100">
+          {step === 1 && (
+          <div className="space-y-3">
             <SectionHeader icon={CalendarDays} label="When are you travelling?" />
 
             <div className="flex gap-1.5 flex-wrap">
@@ -296,9 +352,11 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
               </Field>
             )}
           </div>
+          )}
 
-          <div className="space-y-4 pt-4 border-t border-stone-100">
-            <SectionHeader icon={Compass} label="Transport" />
+          {step === 2 && (
+          <div className="space-y-4">
+            <SectionHeader icon={Compass} label="Transport details" />
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Departure time" hint="When you leave">
@@ -370,8 +428,10 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
               </Field>
             )}
           </div>
+          )}
 
-          <div className="space-y-4 pt-4 border-t border-stone-100">
+          {step === 3 && (
+          <div className="space-y-4">
             <SectionHeader icon={Package} label="Capacity & Price" />
 
             <div className="grid grid-cols-2 gap-3">
@@ -391,14 +451,21 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
                 value={form.notes} onChange={e => set('notes', e.target.value)} />
             </Field>
           </div>
+          )}
         </div>
 
         <div className="px-5 pb-5 flex gap-3">
-          <button onClick={onClose} className="btn-secondary flex-1">Cancel</button>
-          <button onClick={submit} disabled={loading}
-            className={`flex-1 btn-primary ${isEdit ? 'bg-violet-600 hover:bg-violet-700' : ''}`}>
-            {loading ? (isEdit ? 'Saving…' : 'Posting…') : (isEdit ? 'Save Changes' : 'Post Trip')}
+          <button onClick={step === 0 ? onClose : goBack} className="btn-secondary flex-1 flex items-center justify-center gap-1">
+            {step > 0 && <ChevronLeft size={15} />} {step === 0 ? 'Cancel' : 'Back'}
           </button>
+          {step < STEPS.length - 1 ? (
+            <button onClick={goNext} type="button" className="flex-1 btn-primary">Next</button>
+          ) : (
+            <button onClick={submit} disabled={loading}
+              className={`flex-1 btn-primary ${isEdit ? 'bg-violet-600 hover:bg-violet-700' : ''}`}>
+              {loading ? (isEdit ? 'Saving…' : 'Posting…') : (isEdit ? 'Save Changes' : 'Post Trip')}
+            </button>
+          )}
         </div>
       </div>
     </div>

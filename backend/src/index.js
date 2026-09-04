@@ -39,6 +39,7 @@ const announcementRoutes  = require('./routes/announcements');
 const appNotifRoutes      = require('./routes/appNotifications');
 const exploreRoutes       = require('./routes/explore');
 const postRoutes          = require('./routes/posts');
+const cityRoutes          = require('./routes/cities');
 // Ensure Report model is registered for admin queries
 require('./models/Report');
 
@@ -180,6 +181,7 @@ app.use('/api/announcements', announcementRoutes);
 app.use('/api/notifications', appNotifRoutes);
 app.use('/api/explore',       exploreRoutes);
 app.use('/api/posts',         postRoutes);
+app.use('/api/cities',        cityRoutes);
 
 // Health check — also used as a keep-alive ping endpoint
 app.get('/health', (_req, res) => {

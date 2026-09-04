@@ -5,6 +5,7 @@ import { X, Package, AlertTriangle, Edit2, Scale } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import WeightCalculator from './WeightCalculator';
+import { useServiceArea } from '../context/ServiceAreaContext';
 
 const ITEM_TYPES = ['documents', 'electronics', 'clothes', 'others'];
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
@@ -21,6 +22,8 @@ const PROHIBITED_ITEMS = [
 // Pass initialData + parcelId to enter edit mode (same pattern as PostTripModal)
 export default function PostParcelModal({ onClose, onSuccess, initialData = null, parcelId = null }) {
   const isEdit = !!parcelId;
+  const { cityNames, isRestricted } = useServiceArea();
+  const restrictedCities = isRestricted ? cityNames : null;
 
   const [form, setForm] = useState({
     fromCity:    initialData?.fromCity    || '',
@@ -86,17 +89,23 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
         </div>
 
         <div className="px-5 py-4 space-y-4">
+          {isRestricted && (
+            <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2">
+              Currently serving: <span className="font-semibold text-stone-700">{cityNames.join(', ')}</span>
+            </p>
+          )}
           <Field label="Pickup City & Station" error={errors.fromCity}>
             <StationSelect
               cityValue={form.fromCity}    stationValue={form.fromStation}
               onCityChange={v => set('fromCity', v)}
               onStationChange={v => set('fromStation', v)}
               cityPlaceholder="Delhi"      stationPlaceholder="Which station?"
+              cityList={restrictedCities}
             />
           </Field>
 
           <Field label="Destination City" error={errors.toCity}>
-            <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" />
+            <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" cityList={restrictedCities} />
           </Field>
 
           <Field label="Item Type">

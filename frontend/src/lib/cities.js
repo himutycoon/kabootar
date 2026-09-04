@@ -55,17 +55,23 @@ const unique = [...new Set(INDIAN_CITIES)].sort();
 INDIAN_CITIES.length = 0;
 INDIAN_CITIES.push(...unique);
 
-export function filterCities(query) {
+// Generic prefix-then-contains matcher over any city list (used for both the
+// full INDIAN_CITIES list and an admin-restricted allowed-cities list)
+export function filterFromList(query, list) {
   if (!query || query.length < 1) return [];
   const q = query.toLowerCase();
-  const starts = INDIAN_CITIES.filter(c => c.toLowerCase().startsWith(q));
-  const contains = INDIAN_CITIES.filter(c => !c.toLowerCase().startsWith(q) && c.toLowerCase().includes(q));
+  const starts = list.filter(c => c.toLowerCase().startsWith(q));
+  const contains = list.filter(c => !c.toLowerCase().startsWith(q) && c.toLowerCase().includes(q));
   return [...starts, ...contains].slice(0, 8);
 }
 
-export function isValidCity(value) {
+export function filterCities(query) {
+  return filterFromList(query, INDIAN_CITIES);
+}
+
+export function isValidCity(value, list = INDIAN_CITIES) {
   if (!value) return false;
-  return INDIAN_CITIES.some(c => c.toLowerCase() === value.toLowerCase());
+  return list.some(c => c.toLowerCase() === value.toLowerCase());
 }
 
 // Popular cities shown when input is focused but empty

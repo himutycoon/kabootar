@@ -8,12 +8,13 @@ export default function StationSelect({
   onStationChange,
   cityPlaceholder = 'City',
   stationPlaceholder = 'Station / Area',
+  cityList = null,
 }) {
   const stations = STATIONS[cityValue] || [];
 
   return (
     <div className="space-y-2">
-      <CityInput value={cityValue} onChange={onCityChange} placeholder={cityPlaceholder} />
+      <CityInput value={cityValue} onChange={onCityChange} placeholder={cityPlaceholder} cityList={cityList} />
       {cityValue ? (
         stations.length > 0 ? (
           <select

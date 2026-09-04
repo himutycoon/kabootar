@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from
 import { Toaster } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { ServiceAreaProvider } from './context/ServiceAreaContext';
 import Onboarding from './components/Onboarding';
 import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
@@ -135,6 +136,7 @@ export default function App() {
 
       <BrowserRouter>
         <AuthProvider>
+        <ServiceAreaProvider>
           <AppRoutes />
           <Toaster
             position="top-center"
@@ -150,6 +152,7 @@ export default function App() {
               success: { iconTheme: { primary: '#f97316', secondary: '#fff' } },
             }}
           />
+        </ServiceAreaProvider>
         </AuthProvider>
       </BrowserRouter>
     </>

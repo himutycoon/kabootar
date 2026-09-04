@@ -4,6 +4,7 @@ const Trip = require('../models/Trip');
 const User = require('../models/User');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
+const { assertRouteAllowed } = require('../utils/serviceCities');
 
 // GET /api/trips/stats — live counts for the home hero
 router.get('/stats', async (req, res) => {
@@ -124,6 +125,8 @@ router.post('/', protect, async (req, res) => {
       return res.status(400).json({ message: `You can add up to ${MAX_DATES} dates in a single trip post` });
     }
 
+    await assertRouteAllowed(fromCity, toCity);
+
     const trip = await Trip.create({
       userId: req.user._id,
       fromCity,
@@ -163,7 +166,7 @@ router.post('/', protect, async (req, res) => {
 
     res.status(201).json({ trip });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 });
 
@@ -177,11 +180,15 @@ router.patch('/:id', protect, async (req, res) => {
       return res.status(400).json({ message: 'You can add up to 60 dates in a single trip post' });
     }
 
+    if (req.body.fromCity || req.body.toCity) {
+      await assertRouteAllowed(req.body.fromCity || trip.fromCity, req.body.toCity || trip.toCity);
+    }
+
     Object.assign(trip, req.body);
     await trip.save();
     res.json({ trip });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(err.status || 500).json({ message: err.message });
   }
 });
 

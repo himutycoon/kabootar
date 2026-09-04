@@ -3,8 +3,9 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload } from 'lucide-react';
+import { Shield, CheckCircle, XCircle, Users, ChevronLeft, Search, ExternalLink, Clock, Megaphone, Plus, Trash2, Pin, BookOpen, Star, Sparkles, Flag, Upload, MapPin } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
+import CityInput from '../components/CityInput';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
@@ -137,6 +138,10 @@ function AdminDashboard() {
           className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'users' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
           <Users size={12} /> Users
         </button>
+        <button onClick={() => setTab('cities')}
+          className={`flex-1 py-2 rounded-lg text-[11px] font-semibold transition-all flex items-center justify-center gap-1 ${tab === 'cities' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          <MapPin size={12} /> Cities
+        </button>
       </div>
 
       <div className="px-4 py-4">
@@ -145,6 +150,7 @@ function AdminDashboard() {
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
+        {tab === 'cities'        && <CitiesManager />}
       </div>
     </div>
   );
@@ -694,6 +700,93 @@ function AnnouncementsManager() {
                 <button onClick={() => remove(a._id)} className="text-[10px] font-bold px-2 py-1 rounded-lg bg-red-100 text-red-500">
                   <Trash2 size={11} />
                 </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Launch cities (allowed cities/states) ─────────────────────────────────────
+function CitiesManager() {
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [form,    setForm]    = useState({ city: '', state: '' });
+  const [saving,  setSaving]  = useState(false);
+
+  const load = async () => {
+    setLoading(true);
+    const r = await api.get('/cities').catch(() => ({ data: { cities: [] } }));
+    setItems(r.data.cities || []);
+    setLoading(false);
+  };
+  useEffect(() => { load(); }, []);
+
+  const create = async () => {
+    if (!form.city.trim() || !form.state.trim()) { toast.error('City and state required'); return; }
+    setSaving(true);
+    try {
+      await api.post('/cities', form);
+      toast.success(`${form.city} added`);
+      setForm({ city: '', state: '' });
+      load();
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed'); }
+    finally { setSaving(false); }
+  };
+
+  const remove = async (id, city) => {
+    if (!confirm(`Remove ${city}? Trips/parcels can no longer be posted for this city.`)) return;
+    await api.delete(`/cities/${id}`).catch(() => {});
+    setItems(prev => prev.filter(c => c._id !== id));
+    toast.success('Removed');
+  };
+
+  const byState = items.reduce((acc, c) => { (acc[c.state] ||= []).push(c); return acc; }, {});
+
+  return (
+    <div className="space-y-5">
+      {/* Create form */}
+      <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Plus size={14} /> Add Launch City</h3>
+        <p className="text-xs text-stone-400">
+          {items.length === 0
+            ? 'No cities configured — the app is unrestricted, anyone can post between any city.'
+            : 'Trip & parcel posting is restricted to routes where BOTH cities are on this list.'}
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          <CityInput value={form.city} onChange={v => setForm(f => ({ ...f, city: v }))} placeholder="City" />
+          <input className="input-field" placeholder="State" value={form.state}
+            onChange={e => setForm(f => ({ ...f, state: e.target.value }))} />
+        </div>
+        <button onClick={create} disabled={saving} className="btn-primary w-full text-sm">
+          {saving ? 'Adding…' : 'Add City'}
+        </button>
+      </div>
+
+      {/* Existing cities, grouped by state */}
+      {loading ? (
+        <div className="text-center text-stone-400 text-sm py-8">Loading…</div>
+      ) : items.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">
+          No launch cities yet — app is open everywhere
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {Object.entries(byState).map(([state, cities]) => (
+            <div key={state}>
+              <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide mb-1.5">{state}</p>
+              <div className="flex flex-wrap gap-2">
+                {cities.map(c => (
+                  <span key={c._id} className="flex items-center gap-1.5 bg-white border border-stone-200 rounded-full pl-3 pr-1.5 py-1 text-xs font-semibold text-stone-700">
+                    {c.city}
+                    <button onClick={() => remove(c._id, c.city)}
+                      className="w-5 h-5 rounded-full hover:bg-red-100 text-red-400 flex items-center justify-center">
+                      <Trash2 size={11} />
+                    </button>
+                  </span>
+                ))}
               </div>
             </div>
           ))}
