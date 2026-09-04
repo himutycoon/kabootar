@@ -270,6 +270,101 @@ router.patch('/reports/:id', adminOnly, async (req, res) => {
   }
 });
 
+// GET /api/admin/trips — moderation list, filterable by status
+router.get('/trips', adminOnly, async (req, res) => {
+  try {
+    const Trip = require('../models/Trip');
+    const page = parseInt(req.query.page) || 1;
+    const limit = 30;
+    const { status } = req.query;
+    const filter = status && status !== 'all' ? { status } : {};
+    const [trips, total] = await Promise.all([
+      Trip.find(filter)
+        .populate('userId', 'name phone kycStatus')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Trip.countDocuments(filter),
+    ]);
+    res.json({ trips, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/admin/trips/:id — remove a trip (spam/abuse moderation)
+router.delete('/trips/:id', adminOnly, async (req, res) => {
+  try {
+    const Trip = require('../models/Trip');
+    const trip = await Trip.findByIdAndDelete(req.params.id);
+    if (!trip) return res.status(404).json({ message: 'Trip not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// GET /api/admin/parcels — moderation list, filterable by status
+router.get('/parcels', adminOnly, async (req, res) => {
+  try {
+    const Parcel = require('../models/Parcel');
+    const page = parseInt(req.query.page) || 1;
+    const limit = 30;
+    const { status } = req.query;
+    const filter = status && status !== 'all' ? { status } : {};
+    const [parcels, total] = await Promise.all([
+      Parcel.find(filter)
+        .populate('userId', 'name phone kycStatus')
+        .sort({ createdAt: -1 })
+        .skip((page - 1) * limit)
+        .limit(limit),
+      Parcel.countDocuments(filter),
+    ]);
+    res.json({ parcels, total, page, pages: Math.ceil(total / limit) });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/admin/parcels/:id — remove a parcel request (spam/abuse moderation)
+router.delete('/parcels/:id', adminOnly, async (req, res) => {
+  try {
+    const Parcel = require('../models/Parcel');
+    const parcel = await Parcel.findByIdAndDelete(req.params.id);
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// POST /api/admin/broadcast — push + in-app notification to a user segment
+router.post('/broadcast', adminOnly, async (req, res) => {
+  try {
+    const { title, body, segment = 'all' } = req.body;
+    if (!title?.trim() || !body?.trim()) {
+      return res.status(400).json({ message: 'title and body required' });
+    }
+
+    const filter = segment === 'all' ? {} : { kycStatus: segment };
+    const users = await User.find(filter).select('_id');
+    const userIds = users.map((u) => u._id);
+
+    if (userIds.length) {
+      const AppNotification = require('../models/AppNotification');
+      await AppNotification.insertMany(
+        userIds.map((userId) => ({ userId, title, body, type: 'system', data: {} }))
+      );
+      const { sendToMany } = require('../utils/notifications');
+      sendToMany(userIds, { title, body, data: { type: 'broadcast' } }).catch(() => {});
+    }
+
+    res.json({ ok: true, count: userIds.length });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // POST /api/admin/purge-test-data — delete all test data, keep admin accounts
 router.post('/purge-test-data', adminOnly, async (req, res) => {
   try {

@@ -122,6 +122,7 @@ function AdminDashboard() {
           { k: 'overview',      label: 'Overview', icon: LayoutDashboard },
           { k: 'kyc',           label: 'KYC',       icon: Clock },
           { k: 'users',         label: 'Users',     icon: Users },
+          { k: 'listings',      label: 'Listings',  icon: Package },
           { k: 'reports',       label: 'Reports',   icon: Flag },
           { k: 'cities',        label: 'Cities',    icon: MapPin },
           { k: 'announcements', label: 'Alerts',    icon: Megaphone },
@@ -141,6 +142,7 @@ function AdminDashboard() {
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
+        {tab === 'listings'      && <ListingsManager />}
         {tab === 'cities'        && <CitiesManager />}
       </div>
     </div>
@@ -171,8 +173,8 @@ function Overview({ onNavigate }) {
     { label: 'KYC Verified',   value: stats.verifiedUsers,  icon: ShieldCheck, grad: 'from-emerald-500 to-teal-500',  tab: 'users' },
     { label: 'Pending KYC',    value: stats.pendingKyc,     icon: Clock,       grad: 'from-amber-500 to-orange-500',  tab: 'kyc' },
     { label: 'Banned',         value: stats.bannedUsers,    icon: Ban,         grad: 'from-stone-500 to-stone-700',   tab: 'users' },
-    { label: 'Active Trips',   value: stats.activeTrips,    icon: Sparkles,    grad: 'from-orange-500 to-amber-500',  tab: null },
-    { label: 'Open Parcels',   value: stats.openParcels,    icon: Package,     grad: 'from-sky-500 to-blue-500',      tab: null },
+    { label: 'Active Trips',   value: stats.activeTrips,    icon: Sparkles,    grad: 'from-orange-500 to-amber-500',  tab: 'listings' },
+    { label: 'Open Parcels',   value: stats.openParcels,    icon: Package,     grad: 'from-sky-500 to-blue-500',      tab: 'listings' },
     { label: 'Pending Reports',value: stats.pendingReports, icon: Flag,        grad: 'from-red-500 to-rose-500',      tab: 'reports' },
     { label: 'Launch Cities',  value: stats.launchCities,   icon: MapPin,      grad: 'from-teal-500 to-emerald-500',  tab: 'cities' },
   ];
@@ -646,6 +648,54 @@ function ReportsQueue() {
 const ANNOUNCE_TYPES = ['info', 'warning', 'alert', 'feature'];
 const TYPE_COLOR = { info: 'bg-blue-50 border-blue-200', warning: 'bg-amber-50 border-amber-200', alert: 'bg-red-50 border-red-200', feature: 'bg-orange-50 border-orange-200' };
 
+// ── Push broadcast — sends a real push + in-app notification, unlike a banner Announcement
+function BroadcastTool() {
+  const [open,    setOpen]    = useState(false);
+  const [form,    setForm]    = useState({ title: '', body: '', segment: 'all' });
+  const [sending, setSending] = useState(false);
+
+  const send = async () => {
+    if (!form.title.trim() || !form.body.trim()) { toast.error('Title and message required'); return; }
+    if (!confirm(`Send this push notification to ${form.segment === 'all' ? 'ALL users' : `${form.segment} users`}?`)) return;
+    setSending(true);
+    try {
+      const { data } = await api.post('/admin/broadcast', form);
+      toast.success(`Sent to ${data.count} user${data.count !== 1 ? 's' : ''}`);
+      setForm({ title: '', body: '', segment: 'all' });
+      setOpen(false);
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to send'); }
+    finally { setSending(false); }
+  };
+
+  return (
+    <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
+      <button onClick={() => setOpen(v => !v)} className="w-full flex items-center justify-between">
+        <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Megaphone size={14} className="text-orange-500" /> Push Broadcast</h3>
+        <span className="text-stone-300 text-xs">{open ? '▲' : '▼'}</span>
+      </button>
+      {open && (
+        <div className="space-y-2 animate-fade-in">
+          <p className="text-[11px] text-stone-400">Sends a real push notification + in-app inbox message immediately — different from an Announcement banner.</p>
+          <input className="input-field w-full text-sm" placeholder="Title" value={form.title}
+            onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+          <textarea className="input-field w-full text-sm resize-none" rows={2} placeholder="Message"
+            value={form.body} onChange={e => setForm(f => ({ ...f, body: e.target.value }))} />
+          <select className="input-field w-full text-sm" value={form.segment}
+            onChange={e => setForm(f => ({ ...f, segment: e.target.value }))}>
+            <option value="all">All users</option>
+            <option value="verified">KYC verified only</option>
+            <option value="pending">KYC pending only</option>
+            <option value="none">Unverified only</option>
+          </select>
+          <button onClick={send} disabled={sending} className="btn-primary w-full text-sm">
+            {sending ? 'Sending…' : 'Send Broadcast'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AnnouncementsManager() {
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
@@ -686,6 +736,8 @@ function AnnouncementsManager() {
 
   return (
     <div className="space-y-5">
+      <BroadcastTool />
+
       {/* Create form */}
       <div className="bg-white border border-stone-200 rounded-2xl p-4 space-y-3">
         <h3 className="font-bold text-stone-900 text-sm flex items-center gap-2"><Plus size={14} /> New Announcement</h3>
@@ -875,6 +927,102 @@ function CitiesManager() {
   );
 }
 
+// ── Listings moderation (trips & parcels) ─────────────────────────────────────
+const TRIP_STATUSES   = ['all', 'active', 'completed', 'cancelled'];
+const PARCEL_STATUSES = ['all', 'open', 'matched', 'requested', 'accepted', 'picked', 'in_transit', 'delivered', 'completed', 'cancelled'];
+
+function ListingsManager() {
+  const [kind,    setKind]    = useState('trips'); // 'trips' | 'parcels'
+  const [items,   setItems]   = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [status,  setStatus]  = useState('all');
+  const [page,    setPage]    = useState(1);
+  const [meta,    setMeta]    = useState({ total: 0, pages: 1 });
+
+  const load = (pg = 1) => {
+    setLoading(true);
+    api.get(`/admin/${kind}`, { params: { page: pg, status } })
+      .then(r => { setItems(r.data[kind]); setMeta({ total: r.data.total, pages: r.data.pages }); setPage(pg); })
+      .catch(() => toast.error('Failed to load'))
+      .finally(() => setLoading(false));
+  };
+  useEffect(() => { load(1); }, [kind, status]); // eslint-disable-line
+
+  const remove = async (id) => {
+    if (!confirm(`Remove this ${kind === 'trips' ? 'trip' : 'parcel'}? This cannot be undone.`)) return;
+    try {
+      await api.delete(`/admin/${kind}/${id}`);
+      setItems(prev => prev.filter(i => i._id !== id));
+      toast.success('Removed');
+    } catch { toast.error('Failed to remove'); }
+  };
+
+  const switchKind = (k) => { setKind(k); setStatus('all'); };
+  const statuses = kind === 'trips' ? TRIP_STATUSES : PARCEL_STATUSES;
+
+  return (
+    <div className="space-y-3">
+      <div className="flex gap-1 bg-stone-100 rounded-xl p-1">
+        <button onClick={() => switchKind('trips')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${kind === 'trips' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          ✈️ Trips
+        </button>
+        <button onClick={() => switchKind('parcels')}
+          className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${kind === 'parcels' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
+          📦 Parcels
+        </button>
+      </div>
+
+      <div className="flex gap-1.5 overflow-x-auto pb-0.5">
+        {statuses.map(s => (
+          <button key={s} onClick={() => setStatus(s)}
+            className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-bold capitalize transition-all ${status === s ? 'bg-orange-500 text-white' : 'bg-stone-100 text-stone-500'}`}>
+            {s.replace('_', ' ')}
+          </button>
+        ))}
+      </div>
+
+      <p className="text-xs text-stone-400">{meta.total} {kind}</p>
+
+      {loading ? (
+        <div className="space-y-2">{[1,2,3].map(i => <div key={i} className="bg-white border border-stone-200 rounded-2xl p-3 animate-pulse h-16" />)}</div>
+      ) : items.length === 0 ? (
+        <div className="text-center text-stone-400 text-sm py-8 bg-white rounded-2xl border border-stone-100">No {kind} match this filter</div>
+      ) : (
+        <div className="space-y-2">
+          {items.map(item => (
+            <div key={item._id} className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-sm font-bold text-stone-900 truncate">{item.fromCity} → {item.toCity}</span>
+                  <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500 capitalize">{item.status?.replace('_', ' ')}</span>
+                </div>
+                <p className="text-[11px] text-stone-400 mt-0.5 truncate">
+                  {item.userId?.name || 'Unknown'} · {item.userId?.phone || ''}
+                  {kind === 'trips' ? ` · ${item.transportMode}` : ` · ${item.itemType}, ${item.weight}kg`}
+                  {item.createdAt && ` · ${format(new Date(item.createdAt), 'dd MMM yy')}`}
+                </p>
+              </div>
+              <button onClick={() => remove(item._id)}
+                className="shrink-0 w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
+                <Trash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {meta.pages > 1 && (
+        <div className="flex gap-2 justify-center pt-2">
+          <button onClick={() => load(page - 1)} disabled={page <= 1 || loading} className="btn-secondary px-4 text-sm disabled:opacity-40">← Prev</button>
+          <span className="flex items-center text-xs text-stone-500">Page {page} of {meta.pages}</span>
+          <button onClick={() => load(page + 1)} disabled={page >= meta.pages || loading} className="btn-secondary px-4 text-sm disabled:opacity-40">Next →</button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── All users list ────────────────────────────────────────────────────────────
 const KYC_BADGE = {
   none:     { cls: 'bg-stone-100 text-stone-500',   label: 'Unverified' },
@@ -934,6 +1082,17 @@ function UserCard({ u, currentUserId, onUpdate }) {
       toast.success(`Now ${role}`);
       onUpdate(data.user);
     } catch (err) { toast.error(err.response?.data?.message || 'Failed to update role'); }
+    finally { setBusy(false); }
+  };
+
+  const revokeKyc = async () => {
+    if (!confirm(`Revoke ${u.name}'s KYC verification? They won't be able to post trips until re-verified.`)) return;
+    setBusy(true);
+    try {
+      const { data } = await api.post(`/admin/kyc/${u._id}/reject`, { reason: 'KYC revoked by admin' });
+      toast.success('KYC revoked');
+      onUpdate(data.user);
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to revoke'); }
     finally { setBusy(false); }
   };
 
@@ -1010,6 +1169,12 @@ function UserCard({ u, currentUserId, onUpdate }) {
                       <UserPlus size={11} /> Make Admin
                     </button>
                   )
+                )}
+                {u.kycStatus === 'verified' && (
+                  <button onClick={revokeKyc} disabled={busy}
+                    className="text-[11px] font-bold px-3 py-1.5 rounded-lg bg-amber-50 text-amber-600 border border-amber-200 flex items-center gap-1 disabled:opacity-50">
+                    <XCircle size={11} /> Revoke KYC
+                  </button>
                 )}
                 {isSelf && <p className="text-[11px] text-stone-400">This is you — no self actions</p>}
               </div>
