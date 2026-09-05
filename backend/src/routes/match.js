@@ -3,6 +3,8 @@ const router = express.Router();
 const Trip = require('../models/Trip');
 const Parcel = require('../models/Parcel');
 const { protect } = require('../middleware/auth');
+const { escapeRegex } = require('../utils/regex');
+const { getCommittedWeight, getCommittedWeightMany } = require('../utils/tripCapacity');
 
 // GET /api/match/parcel/:parcelId - Find matching trips for a parcel
 router.get('/parcel/:parcelId', protect, async (req, res) => {
@@ -16,16 +18,26 @@ router.get('/parcel/:parcelId', protect, async (req, res) => {
     const windowEnd = new Date();
     windowEnd.setDate(windowEnd.getDate() + 30);
 
-    const trips = await Trip.find({
-      fromCity: { $regex: new RegExp(`^${fromCity}$`, 'i') },
-      toCity: { $regex: new RegExp(`^${toCity}$`, 'i') },
+    // availableWeight >= weight is only a cheap pre-filter — trips already
+    // carrying other accepted parcels get excluded below by remaining capacity
+    const candidates = await Trip.find({
+      fromCity: { $regex: new RegExp(`^${escapeRegex(fromCity)}$`, 'i') },
+      toCity: { $regex: new RegExp(`^${escapeRegex(toCity)}$`, 'i') },
       availableWeight: { $gte: weight },
-      dates: { $gte: now, $lte: windowEnd },
+      // $elemMatch required: without it, Mongo can match $gte against one date
+      // and $lte against a different one, false-positiving on a multi-date trip
+      // whose actual dates straddle (but don't fall inside) this 30-day window
+      dates: { $elemMatch: { $gte: now, $lte: windowEnd } },
       status: 'active',
     })
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus tripsCompleted createdAt')
       .sort({ dates: 1 })
-      .limit(20);
+      .limit(40);
+
+    const committedByTrip = await getCommittedWeightMany(candidates.map((t) => t._id));
+    const trips = candidates
+      .filter((t) => (t.availableWeight - (committedByTrip.get(String(t._id)) || 0)) >= weight)
+      .slice(0, 20);
 
     res.json({ trips, parcel });
   } catch (err) {
@@ -43,15 +55,12 @@ router.get('/trip/:tripId', protect, async (req, res) => {
 
     // Only suggest parcels that would actually still fit — not the trip's full
     // declared capacity, which ignores parcels already accepted onto this trip
-    const [committed] = await Parcel.aggregate([
-      { $match: { tripId: trip._id, status: { $ne: 'cancelled' } } },
-      { $group: { _id: null, total: { $sum: '$weight' } } },
-    ]);
-    const remainingWeight = Math.max(0, availableWeight - (committed?.total || 0));
+    const committed = await getCommittedWeight(trip._id);
+    const remainingWeight = Math.max(0, availableWeight - committed);
 
     const parcels = await Parcel.find({
-      fromCity: { $regex: new RegExp(`^${fromCity}$`, 'i') },
-      toCity: { $regex: new RegExp(`^${toCity}$`, 'i') },
+      fromCity: { $regex: new RegExp(`^${escapeRegex(fromCity)}$`, 'i') },
+      toCity: { $regex: new RegExp(`^${escapeRegex(toCity)}$`, 'i') },
       weight: { $lte: remainingWeight },
       status: 'open',
     })

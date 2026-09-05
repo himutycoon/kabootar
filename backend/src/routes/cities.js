@@ -1,12 +1,7 @@
 const express = require('express');
 const router  = express.Router();
 const ServiceCity = require('../models/ServiceCity');
-const { protect } = require('../middleware/auth');
-
-const adminOnly = (req, res, next) => {
-  if (req.user?.role !== 'admin') return res.status(403).json({ message: 'Admin only' });
-  next();
-};
+const { adminOnly } = require('../middleware/admin');
 
 // GET /api/cities — public: the current allowed-cities list (empty = unrestricted)
 router.get('/', async (req, res) => {
@@ -19,7 +14,7 @@ router.get('/', async (req, res) => {
 });
 
 // POST /api/cities — admin: add a launch city
-router.post('/', protect, adminOnly, async (req, res) => {
+router.post('/', adminOnly, async (req, res) => {
   try {
     const { city, state } = req.body;
     if (!city?.trim() || !state?.trim())
@@ -34,7 +29,7 @@ router.post('/', protect, adminOnly, async (req, res) => {
 });
 
 // DELETE /api/cities/:id — admin: remove a launch city
-router.delete('/:id', protect, adminOnly, async (req, res) => {
+router.delete('/:id', adminOnly, async (req, res) => {
   try {
     await ServiceCity.findByIdAndDelete(req.params.id);
     res.json({ ok: true });

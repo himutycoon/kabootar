@@ -149,17 +149,30 @@ export const AuthProvider = ({ children }) => {
       refreshUser(); // refresh tripsCompleted count
     };
 
+    // Admin banned this account — sign out immediately instead of waiting for the next API call to 403
+    const onAccountBanned = (data) => {
+      import('react-hot-toast').then(({ default: toast }) => {
+        toast.error(
+          data.reason ? `Your account has been suspended: ${data.reason}` : 'Your account has been suspended.',
+          { duration: 8000 }
+        );
+      });
+      logout();
+    };
+
     socket.on('kyc_approved',              onApproved);
     socket.on('kyc_rejected',              onRejected);
     socket.on('parcel_in_progress',        onParcelInProgress);
     socket.on('parcel_awaiting_confirmation', onAwaitingConfirmation);
     socket.on('delivery_confirmed',        onDeliveryConfirmed);
+    socket.on('account_banned',            onAccountBanned);
     return () => {
       socket.off('kyc_approved',              onApproved);
       socket.off('kyc_rejected',              onRejected);
       socket.off('parcel_in_progress',        onParcelInProgress);
       socket.off('parcel_awaiting_confirmation', onAwaitingConfirmation);
       socket.off('delivery_confirmed',        onDeliveryConfirmed);
+      socket.off('account_banned',            onAccountBanned);
     };
   }, [user?._id]);
 

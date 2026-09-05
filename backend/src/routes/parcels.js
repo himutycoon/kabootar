@@ -5,6 +5,8 @@ const { protect, optionalAuth } = require('../middleware/auth');
 const { upload, getFileUrl } = require('../utils/upload');
 const { notify } = require('../utils/notifications');
 const { assertRouteAllowed } = require('../utils/serviceCities');
+const { escapeRegex } = require('../utils/regex');
+const { getCommittedWeight } = require('../utils/tripCapacity');
 
 // GET /api/parcels — search open parcels (requires from or to; returns empty otherwise)
 router.get('/', optionalAuth, async (req, res) => {
@@ -27,8 +29,8 @@ router.get('/', optionalAuth, async (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     filter.createdAt = { $gte: thirtyDaysAgo };
 
-    if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
-    if (to)   filter.toCity   = { $regex: new RegExp(to,   'i') };
+    if (from) filter.fromCity = { $regex: new RegExp(escapeRegex(from), 'i') };
+    if (to)   filter.toCity   = { $regex: new RegExp(escapeRegex(to),   'i') };
 
     const parcels = await Parcel.find(filter)
       .populate('userId', 'name profileImage maskedPhone rating totalRatings kycStatus')
@@ -147,12 +149,7 @@ router.post('/:id/accept', protect, async (req, res) => {
       return res.status(400).json({ message: "That trip doesn't match this parcel's route" });
     }
 
-    // Sum weight already committed to this trip (anything accepted-or-beyond, not cancelled)
-    const [committed] = await Parcel.aggregate([
-      { $match: { tripId: trip._id, status: { $ne: 'cancelled' } } },
-      { $group: { _id: null, total: { $sum: '$weight' } } },
-    ]);
-    const alreadyCommitted = committed?.total || 0;
+    const alreadyCommitted = await getCommittedWeight(trip._id);
     if (alreadyCommitted + parcel.weight > trip.availableWeight) {
       const remaining = Math.max(0, trip.availableWeight - alreadyCommitted);
       return res.status(400).json({ message: `Not enough room on that trip — only ${remaining}kg left of ${trip.availableWeight}kg` });

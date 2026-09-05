@@ -7,6 +7,7 @@ import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon, MoreVertical
 import ReportBlockSheet from '../components/ReportBlockSheet';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import RatingModal from '../components/RatingModal';
+import { getTripDates } from '../lib/tripDates';
 import KabutarLoader from '../components/KabutarLoader';
 import toast from 'react-hot-toast';
 
@@ -171,7 +172,7 @@ export default function ChatPage() {
             return;
           }
           // Prefer the trip with the soonest upcoming date if more than one matches
-          const trip = myTrips.sort((a, b) => new Date(a.dates?.[0]) - new Date(b.dates?.[0]))[0];
+          const trip = myTrips.sort((a, b) => getTripDates(a)[0] - getTripDates(b)[0])[0];
           await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount, tripId: trip._id });
           toast.success(`Accepted! ₹${amount} locked in 🤝 You're now carrying this parcel.`);
         } else {

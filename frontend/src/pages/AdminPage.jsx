@@ -411,9 +411,11 @@ function PostsManager() {
 
   const remove = async (id) => {
     if (!confirm('Delete this post?')) return;
-    await api.delete(`/posts/${id}`).catch(() => {});
-    setPosts(prev => prev.filter(p => p._id !== id));
-    toast.success('Deleted');
+    try {
+      await api.delete(`/posts/${id}`);
+      setPosts(prev => prev.filter(p => p._id !== id));
+      toast.success('Deleted');
+    } catch { toast.error('Failed to delete'); }
   };
 
   const seed = async () => {
@@ -729,9 +731,11 @@ function AnnouncementsManager() {
 
   const remove = async (id) => {
     if (!confirm('Delete this announcement?')) return;
-    await api.delete(`/announcements/${id}`).catch(() => {});
-    setItems(prev => prev.filter(a => a._id !== id));
-    toast.success('Deleted');
+    try {
+      await api.delete(`/announcements/${id}`);
+      setItems(prev => prev.filter(a => a._id !== id));
+      toast.success('Deleted');
+    } catch { toast.error('Failed to delete'); }
   };
 
   return (
@@ -837,9 +841,11 @@ function CitiesManager() {
 
   const remove = async (id, city) => {
     if (!confirm(`Remove ${city}? Trips/parcels can no longer be posted for this city.`)) return;
-    await api.delete(`/cities/${id}`).catch(() => {});
-    setItems(prev => prev.filter(c => c._id !== id));
-    toast.success('Removed');
+    try {
+      await api.delete(`/cities/${id}`);
+      setItems(prev => prev.filter(c => c._id !== id));
+      toast.success('Removed');
+    } catch { toast.error('Failed to remove'); }
   };
 
   const byState = items.reduce((acc, c) => { (acc[c.state] ||= []).push(c); return acc; }, {});

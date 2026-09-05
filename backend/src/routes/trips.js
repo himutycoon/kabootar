@@ -5,6 +5,8 @@ const User = require('../models/User');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
 const { assertRouteAllowed } = require('../utils/serviceCities');
+const { escapeRegex } = require('../utils/regex');
+const { MAX_DATES, normalizeDates } = require('../utils/tripDates');
 
 // GET /api/trips/stats — live counts for the home hero
 router.get('/stats', async (req, res) => {
@@ -54,13 +56,15 @@ router.get('/', optionalAuth, async (req, res) => {
       filter.userId = { $nin: req.user.blockedUsers };
     }
 
-    if (from) filter.fromCity = { $regex: new RegExp(from, 'i') };
-    if (to)   filter.toCity   = { $regex: new RegExp(to,   'i') };
+    if (from) filter.fromCity = { $regex: new RegExp(escapeRegex(from), 'i') };
+    if (to)   filter.toCity   = { $regex: new RegExp(escapeRegex(to),   'i') };
     if (date) {
       const d    = new Date(date);
       const next = new Date(date); next.setDate(next.getDate() + 1);
-      // Matches if ANY of the trip's dates falls on the requested day
-      filter.dates = { $gte: d < startOfToday ? startOfToday : d, $lt: next };
+      // $elemMatch required: without it, Mongo can independently match the $gte
+      // bound against one array element and $lt against another, false-positiving
+      // on a multi-date trip whose actual dates straddle (but don't include) this day
+      filter.dates = { $elemMatch: { $gte: d < startOfToday ? startOfToday : d, $lt: next } };
     } else {
       filter.dates = { $gte: startOfToday };
     }
@@ -122,10 +126,7 @@ router.post('/', protect, async (req, res) => {
     // Accept either a `dates` array (specific dates / generated from a recurring
     // pattern client-side) or a legacy single `date` string for older app builds.
     const rawDates = Array.isArray(req.body.dates) ? req.body.dates : (req.body.date ? [req.body.date] : []);
-    const MAX_DATES = 60;
-    const dates = [...new Set(
-      rawDates.map((d) => new Date(d).getTime()).filter((t) => !Number.isNaN(t))
-    )].sort((a, b) => a - b).map((t) => new Date(t));
+    const dates = normalizeDates(rawDates);
 
     if (!fromCity || !toCity || !dates.length || !transportMode || !availableWeight || pricePerKg === undefined) {
       return res.status(400).json({ message: 'All required fields must be provided' });
@@ -188,15 +189,31 @@ router.patch('/:id', protect, async (req, res) => {
     const trip = await Trip.findOne({ _id: req.params.id, userId: req.user._id });
     if (!trip) return res.status(404).json({ message: 'Trip not found or not authorized' });
 
-    if (Array.isArray(req.body.dates) && req.body.dates.length > 60) {
-      return res.status(400).json({ message: 'You can add up to 60 dates in a single trip post' });
+    const body = { ...req.body };
+    // Accept a legacy single `date` from older app builds the same way POST does —
+    // without this, editing a trip's date from an un-updated app silently no-ops
+    // (`date` is now a getter-only virtual on the model).
+    if (!Array.isArray(body.dates) && body.date) {
+      body.dates = [body.date];
+      delete body.date;
     }
 
-    if (req.body.fromCity || req.body.toCity) {
-      await assertRouteAllowed(req.body.fromCity || trip.fromCity, req.body.toCity || trip.toCity);
+    if (Array.isArray(body.dates)) {
+      if (body.dates.length > MAX_DATES) {
+        return res.status(400).json({ message: `You can add up to ${MAX_DATES} dates in a single trip post` });
+      }
+      const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+      body.dates = normalizeDates(body.dates);
+      if (!body.dates.length || body.dates[0] < startOfToday) {
+        return res.status(400).json({ message: 'Travel dates must be today or later' });
+      }
     }
 
-    Object.assign(trip, req.body);
+    if (body.fromCity || body.toCity) {
+      await assertRouteAllowed(body.fromCity || trip.fromCity, body.toCity || trip.toCity);
+    }
+
+    Object.assign(trip, body);
     await trip.save();
     res.json({ trip });
   } catch (err) {

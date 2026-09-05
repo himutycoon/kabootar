@@ -17,13 +17,18 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 globally
+// Handle 401 (expired session) and banned accounts globally
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    if (err.response?.status === 401) {
+    if (err.response?.status === 401 || err.response?.data?.banned) {
       localStorage.removeItem('kabootar_token');
       localStorage.removeItem('kabootar_user');
+      if (err.response?.data?.banned) {
+        import('react-hot-toast').then(({ default: toast }) => {
+          toast.error(err.response.data.message || 'Your account has been suspended.', { duration: 8000 });
+        });
+      }
       window.location.href = '/login';
     }
     return Promise.reject(err);
