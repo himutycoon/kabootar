@@ -14,12 +14,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
 
-    <!-- Camera + media — profile photo, KYC selfie, parcel photos -->
+    <!-- Camera — profile photo, KYC selfie, parcel photos -->
+    <!-- READ_MEDIA_IMAGES removed: using Android Photo Picker (no permission needed) -->
     <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <!-- Legacy storage for Android 12 and below -->
-    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"
-        android:maxSdkVersion="32" />
 
     <!-- ── Application ───────────────────────────────────────────────────────── -->
     <application
