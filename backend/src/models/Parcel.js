@@ -33,6 +33,8 @@ const parcelSchema = new mongoose.Schema(
     dropStation: { type: String, default: '' },
     pickupPhotoUrl: { type: String, default: '' },
     deliveryPhotoUrl: { type: String, default: '' },
+    senderReviewed:   { type: Boolean, default: false },
+    travelerReviewed: { type: Boolean, default: false },
   },
   { timestamps: true }
 );

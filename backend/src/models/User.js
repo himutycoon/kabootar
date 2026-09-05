@@ -31,6 +31,7 @@ const userSchema = new mongoose.Schema(
     reviews: [
       {
         from: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        parcelId: { type: mongoose.Schema.Types.ObjectId, ref: 'Parcel' },
         rating: Number,
         comment: String,
         createdAt: { type: Date, default: Date.now },

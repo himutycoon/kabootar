@@ -9,16 +9,23 @@ const { protect } = require('../middleware/auth');
 router.get('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id)
-      .select('name profileImage rating totalRatings kycStatus tripsCompleted createdAt')
+      .select('name profileImage rating totalRatings kycStatus tripsCompleted createdAt reviews')
+      .populate('reviews.from', 'name profileImage')
       .lean({ virtuals: true });
     if (!user) return res.status(404).json({ message: 'User not found' });
 
+    // Completed, not just handed-off-but-unconfirmed
     const deliveredCount = await Parcel.countDocuments({
       travelerId: req.params.id,
-      status: 'delivered',
+      status: 'completed',
     });
 
-    res.json({ user: { ...user, deliveredCount } });
+    const reviews = (user.reviews || [])
+      .filter((r) => r.comment?.trim())
+      .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt))
+      .slice(0, 20);
+
+    res.json({ user: { ...user, reviews, deliveredCount } });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

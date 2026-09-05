@@ -3,16 +3,18 @@ import api from "../lib/api";
 import toast from "react-hot-toast";
 import { X, Star } from "lucide-react";
 
-export default function RatingModal({ partner, onClose }) {
+export default function RatingModal({ partner, parcelId, onClose, onSubmitted }) {
   const [rating, setRating] = useState(5);
   const [hovered, setHovered] = useState(null);
+  const [comment, setComment] = useState("");
   const [loading, setLoading] = useState(false);
 
   const submit = async () => {
     setLoading(true);
     try {
-      await api.post(`/auth/rate/${partner._id}`, { rating });
+      await api.post(`/parcels/${parcelId}/review`, { rating, comment });
       toast.success(`Rated ${partner.name} ${rating}⭐`);
+      onSubmitted?.();
       onClose();
     } catch (err) {
       toast.error(err.response?.data?.message || "Failed to submit rating");
@@ -56,6 +58,14 @@ export default function RatingModal({ partner, onClose }) {
           <p className="text-stone-500 text-sm">
             {display === 5 ? "Excellent!" : display === 4 ? "Good" : display === 3 ? "Okay" : display === 2 ? "Below average" : "Poor"}
           </p>
+
+          <textarea
+            className="input-field resize-none text-sm text-left"
+            rows={3}
+            placeholder="Share a few words about this delivery (optional)"
+            value={comment}
+            onChange={e => setComment(e.target.value.slice(0, 500))}
+          />
         </div>
 
         <div className="px-5 pb-5 flex gap-3">

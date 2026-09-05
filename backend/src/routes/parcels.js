@@ -347,4 +347,58 @@ router.post('/:id/confirm-receipt', protect, async (req, res) => {
   }
 });
 
+// POST /api/parcels/:id/review — rate + review the other party, gated to a completed delivery
+router.post('/:id/review', protect, async (req, res) => {
+  try {
+    const { rating, comment } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ message: 'Rating must be between 1 and 5' });
+    }
+
+    const parcel = await Parcel.findById(req.params.id);
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    if (parcel.status !== 'completed') {
+      return res.status(400).json({ message: 'You can only review after the delivery is completed' });
+    }
+
+    const isSender   = parcel.userId.toString() === req.user._id.toString();
+    const isTraveler = parcel.travelerId?.toString() === req.user._id.toString();
+    if (!isSender && !isTraveler) return res.status(403).json({ message: 'Not part of this delivery' });
+    if (isSender && parcel.senderReviewed)     return res.status(400).json({ message: 'You already reviewed this delivery' });
+    if (isTraveler && parcel.travelerReviewed) return res.status(400).json({ message: 'You already reviewed this delivery' });
+
+    const targetId = isSender ? parcel.travelerId : parcel.userId;
+    if (!targetId) return res.status(400).json({ message: 'No one to review' });
+
+    const User = require('../models/User');
+    const target = await User.findById(targetId);
+    if (!target) return res.status(404).json({ message: 'User not found' });
+
+    target.reviews.push({
+      from: req.user._id,
+      parcelId: parcel._id,
+      rating,
+      comment: (comment || '').trim().slice(0, 500),
+    });
+    target.ratingSum += rating;
+    target.totalRatings += 1;
+    target.rating = parseFloat((target.ratingSum / target.totalRatings).toFixed(1));
+    await target.save();
+
+    if (isSender) parcel.senderReviewed = true; else parcel.travelerReviewed = true;
+    await parcel.save();
+
+    notify(targetId, {
+      title: '⭐ New review received!',
+      body:  `${req.user.name} rated you ${rating}★${comment ? ` — "${comment.slice(0, 60)}"` : ''}`,
+      type:  'system',
+      data:  { type: 'review', parcelId: String(parcel._id) },
+    }).catch(() => {});
+
+    res.json({ ok: true, rating: target.rating, totalRatings: target.totalRatings });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 module.exports = router;

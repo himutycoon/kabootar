@@ -118,26 +118,6 @@ router.get('/me', protect, async (req, res) => {
   res.json({ user: req.user });
 });
 
-// POST /api/auth/rate/:userId
-router.post('/rate/:userId', protect, async (req, res) => {
-  const { rating } = req.body;
-  if (!rating || rating < 1 || rating > 5) {
-    return res.status(400).json({ message: 'Rating must be between 1 and 5' });
-  }
-  try {
-    const user = await User.findById(req.params.userId);
-    if (!user) return res.status(404).json({ message: 'User not found' });
-
-    user.ratingSum += rating;
-    user.totalRatings += 1;
-    user.rating = parseFloat((user.ratingSum / user.totalRatings).toFixed(1));
-    await user.save();
-    res.json({ rating: user.rating, totalRatings: user.totalRatings });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
 // PATCH /api/auth/me — update profile fields
 router.patch('/me', protect, async (req, res) => {
   try {

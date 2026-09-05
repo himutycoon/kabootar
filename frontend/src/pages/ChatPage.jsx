@@ -33,6 +33,7 @@ export default function ChatPage() {
   const [showRating,     setShowRating]     = useState(false);
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [activeParcel,   setActiveParcel]   = useState(null);
+  const [reviewableParcel, setReviewableParcel] = useState(null);
   const [parcelBannerOpen, setParcelBannerOpen] = useState(true);
   const [showOfferPanel, setShowOfferPanel] = useState(false);
   const [offerAmount,    setOfferAmount]    = useState('');
@@ -55,14 +56,23 @@ export default function ChatPage() {
       .finally(() => setLoading(false));
     // Fetch active parcel between these two users
     api.get('/parcels/my').then(r => {
-      const p = r.data.parcels?.find(parcel => {
+      const parcels = r.data.parcels || [];
+      const between = (parcel) => {
         const s = String(parcel.userId?._id || parcel.userId || '');
         const t = String(parcel.travelerId?._id || parcel.travelerId || '');
-        return (s === userId || t === userId) && !['completed','cancelled'].includes(parcel.status);
-      });
-      setActiveParcel(p || null);
+        return (s === userId && t === user?._id) || (t === userId && s === user?._id);
+      };
+
+      setActiveParcel(parcels.find(p => between(p) && !['completed','cancelled'].includes(p.status)) || null);
+
+      // A completed delivery between us that I haven't reviewed yet
+      setReviewableParcel(parcels.find(p => {
+        if (!between(p) || p.status !== 'completed') return false;
+        const iAmSender = String(p.userId?._id || p.userId || '') === user?._id;
+        return iAmSender ? !p.senderReviewed : !p.travelerReviewed;
+      }) || null);
     }).catch(() => {});
-  }, [userId]);
+  }, [userId, user?._id]);
 
   useEffect(() => {
     if (!roomId) return;
@@ -252,7 +262,9 @@ export default function ChatPage() {
           </div>
         </div>
 
-        <button onClick={() => setShowRating(true)} className="btn-ghost text-xs text-stone-500 shrink-0">Rate</button>
+        {reviewableParcel && (
+          <button onClick={() => setShowRating(true)} className="btn-ghost text-xs text-orange-500 font-semibold shrink-0">Rate & Review</button>
+        )}
         <button onClick={() => setShowSafetyMenu(true)} className="btn-ghost p-1.5 shrink-0">
           <MoreVertical size={18} className="text-stone-400" />
         </button>
@@ -482,7 +494,14 @@ export default function ChatPage() {
         </button>
       </div>
 
-      {showRating && <RatingModal partner={partner} onClose={() => setShowRating(false)} />}
+      {showRating && reviewableParcel && (
+        <RatingModal
+          partner={partner}
+          parcelId={reviewableParcel._id}
+          onClose={() => setShowRating(false)}
+          onSubmitted={() => setReviewableParcel(null)}
+        />
+      )}
       {showSafetyMenu && (
         <ReportBlockSheet
           userId={userId}

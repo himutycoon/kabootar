@@ -140,6 +140,27 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
                   {data?.rating?.toFixed(1)} · {data?.totalRatings || 0} review{data?.totalRatings !== 1 ? 's' : ''}
                 </span>
               </div>
+
+              {/* Written reviews from completed deliveries */}
+              {profile?.reviews?.length > 0 && (
+                <div className="space-y-2.5">
+                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide">What people say</p>
+                  {profile.reviews.map((r, i) => (
+                    <div key={i} className="bg-stone-50 border border-stone-100 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-stone-800">{r.from?.name || 'Kabutar user'}</span>
+                        <span className="flex items-center gap-0.5">
+                          {[1,2,3,4,5].map(s => (
+                            <Star key={s} size={10} className={s <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-stone-200 fill-stone-200'} />
+                          ))}
+                        </span>
+                        <span className="text-[10px] text-stone-400 ml-auto">{format(new Date(r.createdAt), 'dd MMM yyyy')}</span>
+                      </div>
+                      <p className="text-xs text-stone-600 leading-relaxed">"{r.comment}"</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </>
           )}
 
