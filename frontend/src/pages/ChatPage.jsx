@@ -160,7 +160,19 @@ export default function ChatPage() {
       } else {
         // Traveller accepting sender's offer — formally accept the parcel carry
         if (parcel.status === 'open') {
-          await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount });
+          const tripsRes = await api.get('/trips/my');
+          const myTrips = (tripsRes.data.trips || []).filter(t =>
+            t.status === 'active' &&
+            t.fromCity.toLowerCase() === parcel.fromCity.toLowerCase() &&
+            t.toCity.toLowerCase()   === parcel.toCity.toLowerCase()
+          );
+          if (!myTrips.length) {
+            toast.error(`Post a trip on ${parcel.fromCity} → ${parcel.toCity} before accepting this parcel`);
+            return;
+          }
+          // Prefer the trip with the soonest upcoming date if more than one matches
+          const trip = myTrips.sort((a, b) => new Date(a.dates?.[0]) - new Date(b.dates?.[0]))[0];
+          await api.post(`/parcels/${parcel._id}/accept`, { offeredPrice: amount, tripId: trip._id });
           toast.success(`Accepted! ₹${amount} locked in 🤝 You're now carrying this parcel.`);
         } else {
           await api.patch(`/parcels/${parcel._id}`, { offeredPrice: amount });

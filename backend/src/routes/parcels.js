@@ -123,9 +123,14 @@ router.get('/by-sender/:userId', protect, async (req, res) => {
   }
 });
 
-// POST /api/parcels/:id/accept — traveler accepts parcel; optionally locks in offeredPrice
+// POST /api/parcels/:id/accept — traveler accepts parcel against one of their own
+// trips; optionally locks in offeredPrice. Requires tripId so we can enforce the
+// trip's stated weight capacity instead of letting a traveler overbook.
 router.post('/:id/accept', protect, async (req, res) => {
   try {
+    const { tripId } = req.body;
+    if (!tripId) return res.status(400).json({ message: 'Select which of your trips will carry this parcel' });
+
     const parcel = await Parcel.findById(req.params.id);
     if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
     if (parcel.status !== 'open') return res.status(400).json({ message: 'Parcel is not available' });
@@ -133,7 +138,28 @@ router.post('/:id/accept', protect, async (req, res) => {
       return res.status(400).json({ message: 'Cannot accept your own parcel' });
     }
 
+    const Trip = require('../models/Trip');
+    const trip = await Trip.findOne({ _id: tripId, userId: req.user._id });
+    if (!trip) return res.status(404).json({ message: 'Trip not found' });
+    if (trip.status !== 'active') return res.status(400).json({ message: 'That trip is no longer active' });
+    if (trip.fromCity.toLowerCase() !== parcel.fromCity.toLowerCase() ||
+        trip.toCity.toLowerCase()   !== parcel.toCity.toLowerCase()) {
+      return res.status(400).json({ message: "That trip doesn't match this parcel's route" });
+    }
+
+    // Sum weight already committed to this trip (anything accepted-or-beyond, not cancelled)
+    const [committed] = await Parcel.aggregate([
+      { $match: { tripId: trip._id, status: { $ne: 'cancelled' } } },
+      { $group: { _id: null, total: { $sum: '$weight' } } },
+    ]);
+    const alreadyCommitted = committed?.total || 0;
+    if (alreadyCommitted + parcel.weight > trip.availableWeight) {
+      const remaining = Math.max(0, trip.availableWeight - alreadyCommitted);
+      return res.status(400).json({ message: `Not enough room on that trip — only ${remaining}kg left of ${trip.availableWeight}kg` });
+    }
+
     parcel.travelerId = req.user._id;
+    parcel.tripId = trip._id;
     parcel.status = 'accepted';
     parcel.acceptedAt = new Date();
     if (req.body.offeredPrice) parcel.offeredPrice = Number(req.body.offeredPrice);

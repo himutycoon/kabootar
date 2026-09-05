@@ -41,17 +41,25 @@ router.get('/trip/:tripId', protect, async (req, res) => {
 
     const { fromCity, toCity, availableWeight } = trip;
 
+    // Only suggest parcels that would actually still fit — not the trip's full
+    // declared capacity, which ignores parcels already accepted onto this trip
+    const [committed] = await Parcel.aggregate([
+      { $match: { tripId: trip._id, status: { $ne: 'cancelled' } } },
+      { $group: { _id: null, total: { $sum: '$weight' } } },
+    ]);
+    const remainingWeight = Math.max(0, availableWeight - (committed?.total || 0));
+
     const parcels = await Parcel.find({
       fromCity: { $regex: new RegExp(`^${fromCity}$`, 'i') },
       toCity: { $regex: new RegExp(`^${toCity}$`, 'i') },
-      weight: { $lte: availableWeight },
+      weight: { $lte: remainingWeight },
       status: 'open',
     })
       .populate('userId', 'name maskedPhone rating totalRatings kycStatus createdAt')
       .sort({ createdAt: -1 })
       .limit(20);
 
-    res.json({ parcels, trip });
+    res.json({ parcels, trip, remainingWeight });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }
