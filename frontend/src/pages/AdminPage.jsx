@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
@@ -9,11 +9,25 @@ import { CITIES_BY_STATE, INDIAN_STATES } from '../lib/cities';
 
 // ── Admin guard ───────────────────────────────────────────────────────────────
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const navigate = useNavigate();
+  // The cached user in localStorage can carry a stale role (e.g. promoted via DB or by
+  // another admin) — re-fetch from the server before deciding whether to show the panel.
+  const [checking, setChecking] = useState(!!user);
 
-  const location = useLocation();
-  if (!user) { navigate('/login', { state: { from: '/admin' } }); return null; }
+  useEffect(() => {
+    if (!user) return;
+    refreshUser().finally(() => setChecking(false));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!user) return <Navigate to="/login" state={{ from: '/admin' }} replace />;
+  if (checking) {
+    return (
+      <div className="min-h-screen bg-stone-50 flex items-center justify-center">
+        <p className="text-stone-400 text-sm">Checking admin access…</p>
+      </div>
+    );
+  }
   if (user.role !== 'admin') {
     return (
       <div className="min-h-screen bg-stone-50 flex items-center justify-center px-4">

@@ -44,12 +44,12 @@ tripSchema.virtual('date').get(function () {
 });
 
 // Keep dates deduped and sorted ascending regardless of how they were submitted.
-tripSchema.pre('validate', function (next) {
+// Mongoose 9 removed the `next` callback from middleware — a sync hook just returns.
+tripSchema.pre('validate', function () {
   if (Array.isArray(this.dates) && this.dates.length) {
     const unique = [...new Set(this.dates.map((d) => new Date(d).getTime()))].filter((t) => !Number.isNaN(t));
     this.dates = unique.sort((a, b) => a - b).map((t) => new Date(t));
   }
-  next();
 });
 
 tripSchema.index({ fromCity: 1, toCity: 1, dates: 1 });
