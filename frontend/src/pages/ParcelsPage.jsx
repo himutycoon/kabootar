@@ -11,6 +11,11 @@ import { Plus, X, RefreshCw, Search } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
+import { Card, PageHeader, Tabs, EmptyState, RowSkeleton } from '../components/desktop/ui';
+import { btn } from '../components/desktop/styles';
+import ResultsSearchBar from '../components/desktop/ResultsSearchBar';
+import { Package, SearchX } from 'lucide-react';
 
 const PULL_THRESHOLD = 64;
 
@@ -79,6 +84,14 @@ export default function ParcelsPage() {
 
   useEffect(() => { fetchParcels(); }, [fetchParcels]);
 
+  // "My Requests" must load even before any route search (fetchParcels exits early without one)
+  useEffect(() => {
+    if (!user) return;
+    api.get('/parcels/my').then(r => setMyParcels(r.data.parcels || [])).catch(() => {});
+  }, [user]);
+
+  const isDesktopWeb = useDesktopWeb();
+
   const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
   const onTouchMove  = (e) => {
     if (window.scrollY > 4) return;
@@ -115,6 +128,94 @@ export default function ParcelsPage() {
         {fn(item)}
       </div>
     ));
+
+  const modals = (
+    <>
+      {showModal && (
+        <PostParcelModal onClose={() => setShowModal(false)}
+          onSuccess={p => { setMyParcels(prev => [p, ...prev]); setParcels(prev => [p, ...prev]); setShowModal(false); }} />
+      )}
+      {matchParcel && <MatchesModal parcel={matchParcel} onClose={() => setMatchParcel(null)} />}
+      {editingParcel && (
+        <PostParcelModal initialData={editingParcel} parcelId={editingParcel._id}
+          onClose={() => setEditingParcel(null)}
+          onSuccess={updated => {
+            setParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
+            setMyParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
+            setEditingParcel(null);
+            toast.success('Parcel request updated!');
+          }} />
+      )}
+    </>
+  );
+
+  // ── Desktop browser layout (never used by the Android app) ──
+  if (isDesktopWeb) {
+    const showResults = tab === 'mine' || hasSearched;
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Parcels" sub="Open parcel requests from senders, and the requests you've posted."
+          actions={<button type="button" onClick={() => authGate(() => setShowModal(true))} className={`${btn.primary} ${btn.lg}`}><Plus size={16} /> Send a parcel</button>} />
+
+        <Tabs value={tab} onChange={k => k === 'mine' ? authGate(() => setTab('mine')) : setTab(k)}
+          items={[{ k: 'all', label: 'Find parcels' }, { k: 'mine', label: 'My requests', count: user ? myParcels.length : undefined }]} />
+
+        {tab === 'all' && (
+          <ResultsSearchBar key={`${search.from}|${search.to}`} value={search}
+            submitLabel="Find parcels" onSubmit={next => setSearch(next)} />
+        )}
+
+        {showResults && (
+          <div className="flex items-start justify-between gap-6">
+            <div className="pt-1.5">
+              <p className="text-sm text-slate-600">
+                {loading && tab === 'all' ? 'Searching…' : <><span className="font-semibold text-slate-900">{filtered.length}</span> request{filtered.length !== 1 ? 's' : ''}{tab === 'all' ? ' found' : ''}{activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}</>}
+              </p>
+              {tab === 'all' && fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
+            </div>
+            <div className="max-w-md">
+              <LocationFilterBar activeFilter={activeFilter} onFilter={setActiveFilter}
+                loc={{ ...loc, nearbyCities: loc.nearbyCities }} onDetect={loc.detect} onCityChange={loc.setCity}
+                onRangeChange={loc.setRange} onClear={loc.clear}
+                resultCount={activeFilter !== 'all' ? filtered.length : undefined} />
+            </div>
+          </div>
+        )}
+
+        {!showResults ? (
+          <Card><EmptyState icon={Search} title="Search parcel requests"
+            body="Enter a pickup or destination city to see open requests you could carry on your trip." /></Card>
+        ) : loading && tab === 'all' ? (
+          <Card className="divide-y divide-slate-100"><RowSkeleton /><RowSkeleton /><RowSkeleton /></Card>
+        ) : filtered.length === 0 ? (
+          <Card>
+            {tab === 'mine' ? (
+              <EmptyState icon={Package} title="No parcel requests yet"
+                body="Post a request with your route, item and weight, and travellers heading that way can reach you."
+                actionLabel="Send a parcel" onAction={() => setShowModal(true)} />
+            ) : (
+              <EmptyState icon={SearchX}
+                title={activeFilter === 'nearby' && loc.city ? `No parcels found near ${loc.city}` : 'No open requests on this route'}
+                body={activeFilter !== 'all' ? 'Try showing all results.' : 'Try a nearby city, or check back later.'}
+                actionLabel={activeFilter !== 'all' ? 'Show all results' : undefined}
+                onAction={() => setActiveFilter('all')} />
+            )}
+          </Card>
+        ) : (
+          <Card className="divide-y divide-slate-100 overflow-hidden">
+            {filtered.map(parcel => (
+              <ParcelCard key={parcel._id} parcel={parcel} variant="row"
+                showDelete={tab === 'mine'}
+                onDelete={() => handleDelete(parcel._id)}
+                onFindMatch={() => authGate(() => setMatchParcel(parcel))}
+                onEdit={tab === 'mine' ? () => setEditingParcel(parcel) : undefined} />
+            ))}
+          </Card>
+        )}
+        {modals}
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-5 relative"

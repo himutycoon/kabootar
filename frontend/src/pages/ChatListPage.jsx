@@ -3,17 +3,23 @@ import { useNavigate } from "react-router-dom";
 import api from "../lib/api";
 import { formatDistanceToNow } from "date-fns";
 import { MessageCircle, Star } from "lucide-react";
+import { useDesktopWeb } from "../hooks/useDesktopWeb";
+import MessagesLayout from "../components/desktop/MessagesLayout";
 
 export default function ChatListPage() {
   const [conversations, setConversations] = useState([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const isDesktopWeb = useDesktopWeb();
 
   useEffect(() => {
     api.get("/chat/conversations")
       .then(r => setConversations(r.data.conversations))
       .finally(() => setLoading(false));
   }, []);
+
+  // Desktop browsers: two-pane messages view (the Android app never takes this branch)
+  if (isDesktopWeb) return <MessagesLayout />;
 
   if (loading) return (
     <div className="px-4 py-5 space-y-3">

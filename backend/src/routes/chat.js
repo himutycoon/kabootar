@@ -24,7 +24,7 @@ router.get('/conversations', protect, async (req, res) => {
 
     const conversations = await Promise.all(
       Array.from(partnerMap.entries()).map(async ([partnerId, lastMsg]) => {
-        const partner = await User.findById(partnerId).select('name maskedPhone rating profileImage');
+        const partner = await User.findById(partnerId).select('name maskedPhone rating totalRatings profileImage kycStatus');
         const unreadCount = await Message.countDocuments({
           senderId: partnerId,
           receiverId: userId,
@@ -63,7 +63,7 @@ router.get('/:userId', protect, async (req, res) => {
       { read: true }
     );
 
-    const partner = await User.findById(otherId).select('name maskedPhone rating totalRatings profileImage');
+    const partner = await User.findById(otherId).select('name maskedPhone rating totalRatings profileImage kycStatus');
 
     res.json({ messages: messages.reverse(), partner });
   } catch (err) {

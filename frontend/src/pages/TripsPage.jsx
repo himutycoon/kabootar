@@ -13,6 +13,11 @@ import { useAuthGate } from '../hooks/useAuthGate';
 import { useLocationFilter } from '../hooks/useLocationFilter';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
+import { Card, PageHeader, Tabs, EmptyState, RowSkeleton } from '../components/desktop/ui';
+import { btn } from '../components/desktop/styles';
+import ResultsSearchBar from '../components/desktop/ResultsSearchBar';
+import { Route, SearchX } from 'lucide-react';
 
 const today = new Date().toISOString().split('T')[0];
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
@@ -99,6 +104,14 @@ export default function TripsPage() {
 
   useEffect(() => { fetchTrips(); }, [fetchTrips]);
 
+  // "My Trips" must load even before any route search (fetchTrips exits early without one)
+  useEffect(() => {
+    if (!user) return;
+    api.get('/trips/my').then(r => setMyTrips(r.data.trips || [])).catch(() => {});
+  }, [user]);
+
+  const isDesktopWeb = useDesktopWeb();
+
   // Pull-to-refresh
   const onTouchStart = (e) => { touchStartY.current = e.touches[0].clientY; };
   const onTouchMove  = (e) => {
@@ -170,6 +183,109 @@ export default function TripsPage() {
         {fn(item)}
       </div>
     ));
+
+  const modals = (
+    <>
+      {showModal && (
+        <PostTripModal onClose={() => setShowModal(false)}
+          onSuccess={trip => { setMyTrips(prev => [trip, ...prev]); setTrips(prev => [trip, ...prev]); setShowModal(false); }} />
+      )}
+      {editingTrip && (
+        <PostTripModal initialData={editingTrip} tripId={editingTrip._id}
+          onClose={() => setEditingTrip(null)} onSuccess={handleEditSuccess} />
+      )}
+    </>
+  );
+
+  // ── Desktop browser layout (never used by the Android app) ──
+  if (isDesktopWeb) {
+    const rows = (items, props = () => ({})) => (
+      <Card className="divide-y divide-slate-100 overflow-hidden">
+        {items.map(t => <TripCard key={t._id} trip={t} variant="row" {...props(t)} />)}
+      </Card>
+    );
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Travellers" sub="Find people already travelling your route, or manage your own trips."
+          actions={<button type="button" onClick={openPostTripModal} className={`${btn.primary} ${btn.lg}`}><Plus size={16} /> Post a trip</button>} />
+
+        <Tabs value={tab} onChange={k => k === 'mine' ? authGate(() => setTab('mine')) : setTab(k)}
+          items={[{ k: 'all', label: 'Find travellers' }, { k: 'mine', label: 'My trips', count: user ? futureMyTrips.length : undefined }]} />
+
+        {tab === 'all' && (
+          <>
+            <ResultsSearchBar key={`${search.from}|${search.to}|${search.date}`} value={search} showDate
+              submitLabel="Find travellers" onSubmit={next => setSearch(next)} />
+
+            {hasSearched && (
+              <div className="flex items-start justify-between gap-6">
+                <div className="pt-1.5">
+                  <p className="text-sm text-slate-600">
+                    {loading ? 'Searching…' : <><span className="font-semibold text-slate-900">{filteredTrips.length}</span> traveller{filteredTrips.length !== 1 ? 's' : ''} found{activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}</>}
+                  </p>
+                  {fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
+                </div>
+                <div className="max-w-md">
+                  <LocationFilterBar activeFilter={activeFilter} onFilter={setActiveFilter}
+                    loc={{ ...loc, nearbyCities: loc.nearbyCities }} onDetect={loc.detect} onCityChange={loc.setCity}
+                    onRangeChange={loc.setRange} onClear={loc.clear}
+                    resultCount={activeFilter !== 'all' ? filteredTrips.length : undefined} />
+                </div>
+              </div>
+            )}
+
+            {search.date && !exactDateMatch && !loading && filteredTrips.length > 0 && (
+              <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
+                No travellers on {format(new Date(search.date), 'dd MMM')}. Showing other upcoming dates on this route.
+              </div>
+            )}
+
+            {!hasSearched ? (
+              <Card><EmptyState icon={Search} title="Search for travellers"
+                body="Enter a pickup or destination city to see upcoming trips on that route." /></Card>
+            ) : loading ? (
+              <Card className="divide-y divide-slate-100"><RowSkeleton /><RowSkeleton /><RowSkeleton /></Card>
+            ) : filteredTrips.length === 0 ? (
+              <Card>
+                <EmptyState icon={SearchX}
+                  title={activeFilter === 'nearby' && loc.city ? `No travellers found near ${loc.city}` : 'No travellers on this route yet'}
+                  body={activeFilter !== 'all' ? 'Try showing all results.' : 'Try another date or nearby city, or post a parcel request so travellers can find you.'}
+                  actionLabel={activeFilter !== 'all' ? 'Show all results' : undefined}
+                  onAction={() => setActiveFilter('all')} />
+              </Card>
+            ) : rows(filteredTrips)}
+          </>
+        )}
+
+        {tab === 'mine' && (
+          <div className="space-y-8">
+            <section>
+              <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Upcoming</h2>
+              {futureMyTrips.length === 0 ? (
+                <Card><EmptyState icon={Route} title="No upcoming trips"
+                  body="Post a trip and senders on your route can request space in your luggage."
+                  actionLabel="Post a trip" onAction={openPostTripModal} /></Card>
+              ) : rows(futureMyTrips, t => ({
+                showDelete: isOwner(t),
+                onDelete: () => handleDelete(t._id),
+                onEdit: isOwner(t) ? () => setEditingTrip(t) : undefined,
+                onMarkFull: isOwner(t) ? () => handleMarkFull(t._id) : undefined,
+              }))}
+            </section>
+            {pastMyTrips.length > 0 && (
+              <section>
+                <h2 className="text-[17px] font-semibold text-slate-900 mb-3 flex items-center gap-2">
+                  Travel history <span className="text-[13px] font-normal text-slate-500">{pastMyTrips.length} past</span>
+                </h2>
+                {rows(pastMyTrips, () => ({ isPast: true }))}
+              </section>
+            )}
+          </div>
+        )}
+        {modals}
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-5 relative"

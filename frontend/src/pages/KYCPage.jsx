@@ -5,12 +5,17 @@ import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
 import { ChevronLeft, Upload, Camera, CheckCircle, Clock, XCircle, Shield, RotateCcw } from 'lucide-react';
 import { format } from 'date-fns';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
+import { Card, PageHeader } from '../components/desktop/ui';
+import { btn } from '../components/desktop/styles';
+import { IdCard } from 'lucide-react';
 
 // Steps: 1=ID Front  2=ID Back  3=Selfie  4=Done
 const STEPS = ['ID Front', 'ID Back', 'Selfie', 'Done'];
 
 export default function KYCPage() {
   const navigate  = useNavigate();
+  const isDesktopWeb = useDesktopWeb();
   const [status,   setStatus]   = useState(null);
   const [loading,  setLoading]  = useState(true);
   const [step,     setStep]     = useState(1);
@@ -75,20 +80,7 @@ export default function KYCPage() {
 
   const kycStatus = status?.kycStatus || 'none';
 
-  return (
-    <div className="px-4 py-5 space-y-5 pb-8">
-      <div className="flex items-center gap-2">
-        <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
-          <ChevronLeft size={20} />
-        </button>
-        <h1 className="text-xl font-bold text-stone-900">KYC Verification</h1>
-      </div>
-
-      {/* Status banner */}
-      <StatusCard kycStatus={kycStatus} kycSubmittedAt={status?.kycSubmittedAt} />
-
-      {/* Upload wizard — hide if already verified */}
-      {kycStatus !== 'verified' && (
+  const wizard = kycStatus !== 'verified' && (
         <div className="card p-5 space-y-5">
 
           {/* Step progress */}
@@ -199,7 +191,66 @@ export default function KYCPage() {
             </div>
           )}
         </div>
-      )}
+  );
+
+  // ── Desktop browser layout (never used by the Android app) ──
+  if (isDesktopWeb) {
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Identity verification"
+          sub="Verified travellers can post trips, and senders see an ID-verified badge on your profile." />
+        <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 items-start">
+          <div className="space-y-5 min-w-0 max-w-2xl">
+            <StatusCard kycStatus={kycStatus} kycSubmittedAt={status?.kycSubmittedAt} />
+            {wizard}
+            {kycStatus === 'verified' && (
+              <Card className="p-6 flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">You're all set</p>
+                  <p className="text-[13px] text-slate-500 mt-0.5">Your identity is verified, so you can post trips.</p>
+                </div>
+                <button type="button" onClick={() => navigate('/app', { state: { intent: 'trip' } })} className={`${btn.primary} ${btn.md}`}>Post a trip</button>
+              </Card>
+            )}
+          </div>
+          <aside className="space-y-5 sticky top-24">
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-slate-900">What you'll need</h3>
+              <ul className="mt-3 space-y-2.5 text-[13px] text-slate-600">
+                <li className="flex gap-2.5"><IdCard size={16} className="text-slate-400 shrink-0 mt-0.5" /> A government ID: Aadhaar, PAN, passport or driving licence</li>
+                <li className="flex gap-2.5"><RotateCcw size={16} className="text-slate-400 shrink-0 mt-0.5" /> The back of the ID, if it has one (required for Aadhaar)</li>
+                <li className="flex gap-2.5"><Camera size={16} className="text-slate-400 shrink-0 mt-0.5" /> A clear selfie that matches your ID photo</li>
+              </ul>
+            </Card>
+            <Card className="p-5">
+              <h3 className="text-sm font-semibold text-slate-900">Why we verify</h3>
+              <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
+                Kabutar connects people who haven't met. Verifying travellers before they post trips helps senders decide who to trust with their parcels.
+              </p>
+              <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
+                Documents are reviewed by the Kabutar team and aren't shown on your public profile.
+              </p>
+            </Card>
+          </aside>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-4 py-5 space-y-5 pb-8">
+      <div className="flex items-center gap-2">
+        <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
+          <ChevronLeft size={20} />
+        </button>
+        <h1 className="text-xl font-bold text-stone-900">KYC Verification</h1>
+      </div>
+
+      {/* Status banner */}
+      <StatusCard kycStatus={kycStatus} kycSubmittedAt={status?.kycSubmittedAt} />
+
+      {/* Upload wizard — hide if already verified */}
+      {wizard}
     </div>
   );
 }

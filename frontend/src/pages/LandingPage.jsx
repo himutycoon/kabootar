@@ -366,7 +366,7 @@ export default function LandingPage() {
               [CircleUser,    'Traveller profiles',    'Check verification status, completed deliveries, ratings and reviews before handing anything over.'],
               [Star,          'Ratings and reviews',   'Reviews can only be left after a completed delivery, so feedback reflects real handovers.'],
               [MessageSquare, 'In-app messaging',      'Agree on the details in Kabutar chat before you meet in person.'],
-              [KeyRound,      'Handover verification', 'Pickup and delivery can be confirmed with one-time codes, and senders confirm receipt.'],
+              [KeyRound,      'Handover verification', 'Travellers add pickup and delivery photos and confirm handovers with one-time codes. Senders confirm receipt.'],
               [Flag,          'Report, block and support', 'Report or block a user from their profile. Reports go to the Kabutar team for review.'],
             ].map(([icon, title, body]) => (
               <div key={title} className="rounded-2xl border border-slate-700/80 bg-slate-800/40 p-6">

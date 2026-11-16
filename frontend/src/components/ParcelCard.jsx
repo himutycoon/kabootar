@@ -2,7 +2,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee, Edit2 } from 'lucide-react';
+import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee, Edit2, FileText, Smartphone, Shirt, Package } from 'lucide-react';
 
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
 const ITEM_LABEL = { documents: 'Documents', electronics: 'Electronics', clothes: 'Clothes', others: 'Other item' };
@@ -52,7 +52,22 @@ function SenderAvatar({ user }) {
   );
 }
 
-export default function ParcelCard({ parcel, showDelete, onDelete, onFindMatch, onEdit }) {
+// Desktop row variant — plain labels and icons instead of emoji
+const DESK_STATUS = {
+  open:       ['Looking for a traveller', 'bg-emerald-50 text-emerald-700'],
+  matched:    ['Traveller found',         'bg-sky-50 text-sky-700'],
+  requested:  ['Awaiting response',       'bg-sky-50 text-sky-700'],
+  accepted:   ['Accepted',                'bg-amber-50 text-amber-700'],
+  picked:     ['Picked up',               'bg-amber-50 text-amber-700'],
+  in_transit: ['In transit',              'bg-amber-50 text-amber-700'],
+  delivered:  ['Delivered',               'bg-slate-100 text-slate-600'],
+  completed:  ['Completed',               'bg-slate-100 text-slate-600'],
+  cancelled:  ['Cancelled',               'bg-slate-100 text-slate-500'],
+};
+const DESK_ITEM_ICON = { documents: FileText, electronics: Smartphone, clothes: Shirt, others: Package };
+
+// variant="row" → desktop-web list row (used only by desktop pages); default is the mobile card
+export default function ParcelCard({ parcel, showDelete, onDelete, onFindMatch, onEdit, variant = 'card' }) {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const authGate   = useAuthGate();
@@ -78,6 +93,85 @@ https://app.kabutar.in`
   const statusLabel = STATUS_LABEL[parcel.status] || parcel.status;
   const statusColor = STATUS_COLOR[parcel.status] || 'bg-stone-100 text-stone-500';
   const timeAgo     = formatDistanceToNow(new Date(parcel.createdAt), { addSuffix: true });
+
+  if (variant === 'row') {
+    const ItemIcon = DESK_ITEM_ICON[parcel.itemType] || Package;
+    const [stLabel, stCls] = DESK_STATUS[parcel.status] || [parcel.status, 'bg-slate-100 text-slate-600'];
+    const hasSender = sender && typeof sender === 'object';
+    const actBtn = 'h-9 px-3 rounded-lg text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors';
+    return (
+      <div className="grid grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_auto] items-center gap-5 px-5 py-4">
+        <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center"><ItemIcon size={18} /></span>
+
+        <div className="min-w-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-sm font-semibold text-slate-900 truncate">{parcel.fromCity} <span className="text-slate-400 font-normal">→</span> {parcel.toCity}</span>
+            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded-md shrink-0 ${stCls}`}>{stLabel}</span>
+          </div>
+          <div className="text-xs text-slate-500 mt-0.5 truncate">
+            {ITEM_LABEL[parcel.itemType] || 'Item'} · approx {parcel.weight} kg
+            {parcel.pickupStation ? ` · ${parcel.pickupStation}` : ''}
+          </div>
+          {parcel.description && <div className="text-xs text-slate-400 mt-0.5 truncate">{parcel.description}</div>}
+        </div>
+
+        <div className="flex items-center gap-2.5 min-w-0">
+          {hasSender && !isOwn ? (
+            <>
+              <span className="w-8 h-8 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center text-xs font-semibold text-slate-600 shrink-0">
+                {sender.profileImage ? <img src={sender.profileImage} alt="" className="w-full h-full object-cover" loading="lazy" /> : sender.name?.[0]?.toUpperCase()}
+              </span>
+              <span className="min-w-0">
+                <span className="flex items-center gap-1.5 min-w-0">
+                  <span className="text-[13px] font-semibold text-slate-800 truncate">{sender.name}</span>
+                  {isVerified && <CheckCircle size={13} className="text-emerald-600 shrink-0" aria-label="ID verified" />}
+                </span>
+                <span className="block text-xs text-slate-400 truncate">
+                  {sender.totalRatings > 0 ? `★ ${sender.rating?.toFixed(1)} (${sender.totalRatings})` : 'No reviews yet'}{sender.city ? ` · ${sender.city}` : ''}
+                </span>
+              </span>
+            </>
+          ) : <span className="text-[13px] text-slate-500">Your request</span>}
+        </div>
+
+        <div className="flex items-center justify-end gap-4">
+          <div className="text-right">
+            {parcel.offeredPrice
+              ? <div className="text-sm font-semibold text-slate-900">₹{parcel.offeredPrice}<span className="text-slate-400 font-normal text-xs"> offered</span></div>
+              : <div className="text-xs text-slate-500">Price open</div>}
+            <div className="text-xs text-slate-400 mt-0.5 whitespace-nowrap">{timeAgo}</div>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button type="button" onClick={handleShare} title="Share on WhatsApp" aria-label="Share on WhatsApp"
+              className="w-9 h-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center transition-colors">
+              <WAIcon />
+            </button>
+            {onEdit && isOwn && parcel.status === 'open' && (
+              <button type="button" onClick={onEdit} className={`${actBtn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>
+                <Edit2 size={13} /> Edit
+              </button>
+            )}
+            {showDelete && (
+              <button type="button" onClick={onDelete} aria-label="Delete request" title="Delete request"
+                className="w-9 h-9 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors">
+                <Trash2 size={15} />
+              </button>
+            )}
+            {isOwn && onFindMatch && parcel.status === 'open' && (
+              <button type="button" onClick={() => authGate(() => onFindMatch())} className={`${actBtn} bg-kb-500 hover:bg-kb-600 text-white`}>
+                <Zap size={14} /> Find travellers
+              </button>
+            )}
+            {!isOwn && hasSender && (
+              <button type="button" onClick={() => authGate(() => navigate(`/chat/${sender._id}`))} className={`${actBtn} bg-kb-500 hover:bg-kb-600 text-white`}>
+                <MessageCircle size={14} /> Chat
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="card p-3.5 animate-fade-in">

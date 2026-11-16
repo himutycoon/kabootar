@@ -52,7 +52,8 @@ function Avatar({ user, verified }) {
   );
 }
 
-export default function TripCard({ trip, showDelete, onDelete, onEdit, onMarkFull, isPast = false }) {
+// variant="row" → desktop-web list row (used only by desktop pages); default is the mobile card
+export default function TripCard({ trip, showDelete, onDelete, onEdit, onMarkFull, isPast = false, variant = 'card' }) {
   const { user }   = useAuth();
   const navigate   = useNavigate();
   const authGate   = useAuthGate();
@@ -93,6 +94,145 @@ Book a parcel spot 👇
 https://app.kabutar.in`
     );
   };
+
+  const modals = (
+    <>
+      {showProfile && traveler && !isPast && (
+        <TravelerProfileModal
+          travelerId={traveler._id}
+          travelerSnap={traveler}
+          onClose={() => setShowProfile(false)}
+          onChat={() => { setShowProfile(false); authGate(() => navigate(`/chat/${traveler._id}`)); }}
+        />
+      )}
+      {showDetail && !isPast && (
+        <TripDetailModal trip={trip} onClose={() => setShowDetail(false)} />
+      )}
+    </>
+  );
+
+  if (variant === 'row') {
+    const hasTraveler = traveler && typeof traveler === 'object';
+    const clickable = !isOwn && !isPast;
+    const actBtn = 'h-9 px-3 rounded-lg text-[13px] font-semibold inline-flex items-center gap-1.5 transition-colors';
+    return (
+      <>
+        <div
+          className={`grid grid-cols-[minmax(0,1fr)_minmax(0,1.25fr)_7.5rem_auto] items-center gap-6 px-5 py-4 transition-colors ${clickable ? 'cursor-pointer hover:bg-slate-50' : ''} ${isPast ? 'opacity-60' : ''}`}
+          onClick={() => { if (clickable) setShowDetail(true); }}>
+
+          {/* Who */}
+          <div className="flex items-center gap-3 min-w-0">
+            {isOwn ? (
+              <>
+                <span className="w-10 h-10 rounded-xl bg-kb-50 text-kb-600 flex items-center justify-center shrink-0"><Icon size={18} /></span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-slate-900">Your trip</span>
+                  <span className="block text-xs text-slate-500 mt-0.5">{TRANSPORT_LABELS[trip.transportMode]}{isPast ? ' · Past' : ''}</span>
+                </span>
+              </>
+            ) : hasTraveler ? (
+              <>
+                <span className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 text-sm font-semibold text-slate-600">
+                  {traveler.profileImage ? <img src={traveler.profileImage} alt="" className="w-full h-full object-cover" loading="lazy" /> : traveler.name?.[0]?.toUpperCase()}
+                </span>
+                <span className="min-w-0">
+                  <span className="flex items-center gap-2 min-w-0">
+                    <span className="text-sm font-semibold text-slate-900 truncate">{traveler.name}</span>
+                    {isVerified && (
+                      <span title="ID verified" aria-label="ID verified" className="text-emerald-600 shrink-0 inline-flex">
+                        <CheckCircle size={14} />
+                      </span>
+                    )}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                    {traveler.totalRatings > 0 ? (
+                      <><Star size={12} className="fill-amber-400 text-amber-400" />
+                        <span className="font-semibold text-slate-800">{traveler.rating?.toFixed(1)}</span>
+                        <span className="text-slate-400">({traveler.totalRatings})</span></>
+                    ) : <span className="text-slate-400">No reviews yet</span>}
+                    {traveler.tripsCompleted > 0 && <span className="text-slate-400">· {traveler.tripsCompleted} deliveries</span>}
+                  </span>
+                </span>
+              </>
+            ) : <span className="text-sm text-slate-500">Traveller</span>}
+          </div>
+
+          {/* Route + schedule */}
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-semibold text-slate-900 min-w-0">
+              <span className="truncate">{trip.fromCity}</span>
+              <span className="text-slate-400 shrink-0">→</span>
+              <span className="truncate">{trip.toCity}</span>
+            </div>
+            <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5 min-w-0">
+              <Icon size={13} className="shrink-0" />
+              <span className="truncate">
+                {TRANSPORT_LABELS[trip.transportMode]} · {formatTripDatesLong(trip)}
+                {dep ? ` · Departs ${dep}` : ''}{arr ? ` · Arrives ${arr}` : ''}{duration ? ` (${duration})` : ''}
+              </span>
+            </div>
+            {(trip.pickupStation || trip.pnrNumber || trip.trainNumber || trip.flightNumber) && (
+              <div className="flex items-center gap-2 text-xs text-slate-400 mt-1 min-w-0">
+                {trip.pickupStation && <span className="truncate flex items-center gap-1"><MapPin size={11} className="shrink-0" />{trip.pickupStation}</span>}
+                {(trip.pnrNumber || trip.trainNumber) && <span className="shrink-0 text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-md font-semibold text-[11px]">Ticket details shared</span>}
+                {trip.flightNumber && <span className="shrink-0 text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded-md font-semibold text-[11px]">{trip.flightNumber}</span>}
+              </div>
+            )}
+          </div>
+
+          {/* Capacity */}
+          <div className="text-right">
+            <div className="text-sm font-semibold text-slate-900">₹{trip.pricePerKg}<span className="text-slate-400 font-normal">/kg</span></div>
+            <div className="text-xs text-slate-500 mt-0.5">{trip.availableWeight} kg space</div>
+          </div>
+
+          {/* Actions */}
+          <div className="flex items-center justify-end gap-1.5" onClick={e => e.stopPropagation()}>
+            {!isPast && (
+              <button type="button" onClick={handleShare} title="Share on WhatsApp" aria-label="Share on WhatsApp"
+                className="w-9 h-9 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 flex items-center justify-center transition-colors">
+                <WAIcon />
+              </button>
+            )}
+            {!isOwn && !isPast && hasTraveler && (
+              <>
+                <button type="button" onClick={() => authGate(() => navigate(`/chat/${traveler._id}`))}
+                  className={`${actBtn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>
+                  <MessageCircle size={14} /> Chat
+                </button>
+                <button type="button" onClick={() => setShowDetail(true)}
+                  className={`${actBtn} bg-kb-500 hover:bg-kb-600 text-white`}>
+                  View <ChevronRight size={14} />
+                </button>
+              </>
+            )}
+            {isOwn && !isPast && (
+              <>
+                {onMarkFull && (
+                  <button type="button" onClick={onMarkFull} className={`${actBtn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>
+                    <CheckCircle size={14} /> Mark full
+                  </button>
+                )}
+                {onEdit && (
+                  <button type="button" onClick={onEdit} className={`${actBtn} border border-slate-200 text-slate-700 hover:bg-slate-50`}>
+                    <Edit2 size={13} /> Edit
+                  </button>
+                )}
+                {showDelete && (
+                  <button type="button" onClick={onDelete} aria-label="Delete trip" title="Delete trip"
+                    className="w-9 h-9 rounded-lg text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center transition-colors">
+                    <Trash2 size={15} />
+                  </button>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+        {modals}
+      </>
+    );
+  }
 
   return (
     <>
@@ -238,20 +378,7 @@ https://app.kabutar.in`
         )}
       </div>
 
-      {showProfile && traveler && !isPast && (
-        <TravelerProfileModal
-          travelerId={traveler._id}
-          travelerSnap={traveler}
-          onClose={() => setShowProfile(false)}
-          onChat={() => { setShowProfile(false); authGate(() => navigate(`/chat/${traveler._id}`)); }}
-        />
-      )}
-      {showDetail && !isPast && (
-        <TripDetailModal
-          trip={trip}
-          onClose={() => setShowDetail(false)}
-        />
-      )}
+      {modals}
     </>
   );
 }

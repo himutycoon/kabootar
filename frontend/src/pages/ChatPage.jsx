@@ -10,6 +10,8 @@ import RatingModal from '../components/RatingModal';
 import { getTripDates } from '../lib/tripDates';
 import KabutarLoader from '../components/KabutarLoader';
 import toast from 'react-hot-toast';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
+import MessagesLayout from '../components/desktop/MessagesLayout';
 
 function activeLabel(isOnline, lastSeenAt) {
   if (isOnline) return null;
@@ -26,6 +28,7 @@ export default function ChatPage() {
   const { userId } = useParams();
   const { user }   = useAuth();
   const navigate   = useNavigate();
+  const d          = useDesktopWeb(); // desktop browser → render inside the two-pane messages shell
 
   const [messages,       setMessages]       = useState([]);
   const [partner,        setPartner]        = useState(null);
@@ -214,6 +217,11 @@ export default function ChatPage() {
 
   const isMine = (msg) => msg.senderId === user?._id || msg.senderId?._id === user?._id;
 
+  if (loading && d) return (
+    <MessagesLayout activeId={userId}>
+      <div className="flex-1 flex items-center justify-center"><KabutarLoader text="Opening chat…" /></div>
+    </MessagesLayout>
+  );
   if (loading) return (
     <div className="fixed inset-0 bg-white flex flex-col z-50">
       <div className="h-14 border-b border-stone-100 animate-pulse bg-white" />
@@ -223,17 +231,19 @@ export default function ChatPage() {
 
   const activeStatus = activeLabel(isOnline, lastSeenAt);
 
-  return (
-    // ── Fixed full-screen layout: header + scroll area + input never scroll together ──
-    <div className="fixed inset-0 z-50 flex flex-col bg-stone-50"
-         style={{ paddingTop: 'env(safe-area-inset-top,0px)', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
+  const pane = (
+    // ── Mobile: fixed full-screen layout · Desktop: fills the right pane of the messages shell ──
+    <div className={d ? 'flex-1 min-h-0 flex flex-col bg-[#FAF9F7]' : 'fixed inset-0 z-50 flex flex-col bg-stone-50'}
+         style={d ? undefined : { paddingTop: 'env(safe-area-inset-top,0px)', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
 
       {/* ── Header — always visible at top ── */}
-      <div className="bg-white border-b border-stone-100 px-4 py-3 flex items-center gap-3 shrink-0"
-           style={{ boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
-        <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
-          <ChevronLeft size={20} />
-        </button>
+      <div className={`bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0 ${d ? 'border-slate-200 px-5' : 'border-stone-100'}`}
+           style={d ? undefined : { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
+        {!d && (
+          <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
+            <ChevronLeft size={20} />
+          </button>
+        )}
 
         {/* Avatar + online dot */}
         <div className="relative shrink-0">
@@ -311,7 +321,7 @@ export default function ChatPage() {
       )}
 
       {/* ── Messages — scrollable middle section ── */}
-      <div className="flex-1 overflow-y-auto px-4 py-4 space-y-2">
+      <div className={`flex-1 overflow-y-auto py-4 space-y-2 ${d ? 'px-6' : 'px-4'}`}>
         {messages.length === 0 && (
           <div className="text-center text-stone-400 text-sm py-8">Start the conversation! 👋</div>
         )}
@@ -395,7 +405,7 @@ export default function ChatPage() {
                     )}
                   </div>
                 ) : (
-                  <div className={`max-w-[78%] px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
+                  <div className={`${d ? 'max-w-[62%] whitespace-pre-wrap break-words' : 'max-w-[78%]'} px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
                     ${mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-white text-stone-900 rounded-bl-sm shadow-sm border border-stone-100'}`}>
                     {msg.text}
                   </div>
@@ -526,4 +536,6 @@ export default function ChatPage() {
       )}
     </div>
   );
+
+  return d ? <MessagesLayout activeId={userId}>{pane}</MessagesLayout> : pane;
 }

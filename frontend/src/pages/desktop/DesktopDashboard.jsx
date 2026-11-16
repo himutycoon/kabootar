@@ -14,6 +14,7 @@ import PostTripModal from '../../components/PostTripModal';
 import PostParcelModal from '../../components/PostParcelModal';
 import RouteSearch from '../../components/desktop/RouteSearch';
 import { PlayStoreBadge } from '../../components/desktop/BrandLogo';
+import { Card, SectionHeader, Avatar, VerifiedBadge, Rating, EmptyState, RowSkeleton, RouteText } from '../../components/desktop/ui';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 const greeting = () => {
@@ -40,92 +41,6 @@ const profilePct = (user) => {
   ];
   return Math.round((checks.filter(Boolean).length / checks.length) * 100);
 };
-
-// ── small building blocks ────────────────────────────────────────────────────
-function Card({ children, className = '' }) {
-  return <div className={`bg-white border border-slate-200 rounded-2xl ${className}`}>{children}</div>;
-}
-
-function SectionHeader({ title, sub, actionLabel, onAction }) {
-  return (
-    <div className="flex items-end justify-between gap-4 mb-3">
-      <div>
-        <h2 className="text-[17px] font-semibold text-slate-900 tracking-[-0.01em]">{title}</h2>
-        {sub && <p className="text-[13px] text-slate-500 mt-0.5">{sub}</p>}
-      </div>
-      {actionLabel && (
-        <button type="button" onClick={onAction}
-          className="shrink-0 text-[13px] font-semibold text-slate-600 hover:text-slate-900 flex items-center gap-1 transition-colors">
-          {actionLabel} <ArrowRight size={14} />
-        </button>
-      )}
-    </div>
-  );
-}
-
-function Avatar({ user, size = 40 }) {
-  return (
-    <span className="rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0" style={{ width: size, height: size }}>
-      {user?.profileImage
-        ? <img src={user.profileImage} alt="" className="w-full h-full object-cover" loading="lazy" />
-        : <span className="text-slate-600 font-semibold text-sm">{user?.name?.[0]?.toUpperCase() || '?'}</span>}
-    </span>
-  );
-}
-
-const VerifiedBadge = () => (
-  <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-md">
-    <BadgeCheck size={12} /> ID verified
-  </span>
-);
-
-function Rating({ user }) {
-  if (!user?.totalRatings) return <span className="text-xs text-slate-400">No reviews yet</span>;
-  return (
-    <span className="inline-flex items-center gap-1 text-xs text-slate-600">
-      <Star size={12} className="fill-amber-400 text-amber-400" />
-      <span className="font-semibold text-slate-800">{Number(user.rating).toFixed(1)}</span>
-      <span className="text-slate-400">({user.totalRatings})</span>
-    </span>
-  );
-}
-
-function EmptyState({ icon, title, body, actionLabel, onAction }) {
-  const Icon = icon;
-  return (
-    <div className="px-6 py-9 text-center">
-      <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-500 inline-flex items-center justify-center mb-3"><Icon size={19} /></span>
-      <p className="text-sm font-semibold text-slate-900">{title}</p>
-      {body && <p className="text-[13px] text-slate-500 mt-1 max-w-sm mx-auto">{body}</p>}
-      {actionLabel && (
-        <button type="button" onClick={onAction}
-          className="mt-4 h-9 px-4 rounded-lg border border-slate-200 text-sm font-semibold text-slate-800 hover:bg-slate-50 transition-colors">
-          {actionLabel}
-        </button>
-      )}
-    </div>
-  );
-}
-
-const RowSkeleton = () => (
-  <div className="flex items-center gap-4 px-5 py-4">
-    <div className="w-10 h-10 rounded-full bg-slate-100 animate-pulse" />
-    <div className="flex-1 space-y-2">
-      <div className="h-3 w-1/3 bg-slate-100 rounded animate-pulse" />
-      <div className="h-3 w-1/2 bg-slate-100 rounded animate-pulse" />
-    </div>
-  </div>
-);
-
-function RouteText({ from, to, className = '' }) {
-  return (
-    <span className={`inline-flex items-center gap-2 min-w-0 ${className}`}>
-      <span className="truncate">{from}</span>
-      <ArrowRight size={14} className="text-slate-400 shrink-0" />
-      <span className="truncate">{to}</span>
-    </span>
-  );
-}
 
 // ── rows ─────────────────────────────────────────────────────────────────────
 function TravellerRow({ trip, onOpen }) {
@@ -447,7 +362,7 @@ export default function DesktopDashboard() {
             <ul className="mt-3.5 space-y-3">
               {[
                 [ShieldCheck,   'Travellers verify their ID before they can post trips'],
-                [KeyRound,      'Pickup and delivery can be confirmed with one-time codes'],
+                [KeyRound,      'Handovers are confirmed with photos and one-time codes'],
                 [MessageSquare, 'Chat in the app before you meet'],
                 [Star,          'Reviews come only from completed deliveries'],
                 [Flag,          'Report or block anyone from their profile'],

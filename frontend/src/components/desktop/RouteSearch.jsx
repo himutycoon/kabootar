@@ -10,7 +10,7 @@ const todayStr = () => {
 };
 
 // ── City input with keyboard-navigable suggestions ───────────────────────────
-function CityField({ id: idProp, label, placeholder, dot, value, onChange, list, popular, onPicked, onEnter, compact }) {
+export function CityField({ id: idProp, label, placeholder, dot, value, onChange, list, popular, onPicked, onEnter, compact }) {
   const autoId = useId();
   const id = idProp || autoId;
   const [open, setOpen] = useState(false);

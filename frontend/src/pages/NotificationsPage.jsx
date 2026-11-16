@@ -4,6 +4,9 @@ import api from '../lib/api';
 import { Bell, CheckCheck, Trash2, Package, Send, MessageCircle, Shield, Megaphone } from 'lucide-react';
 import { formatDistanceToNow, format, isToday, isYesterday } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
+import { Card, PageHeader, EmptyState } from '../components/desktop/ui';
+import { btn } from '../components/desktop/styles';
 
 const TYPE_META = {
   parcel:  { icon: Package,     color: 'bg-orange-100 text-orange-500' },
@@ -87,6 +90,101 @@ export default function NotificationsPage() {
   };
 
   const groups = groupByDay(notifications);
+  const isDesktopWeb = useDesktopWeb();
+
+  // ── Desktop browser layout (never used by the Android app) ──
+  if (isDesktopWeb) {
+    const DESK_TYPE = {
+      parcel:  [Package,       'bg-kb-50 text-kb-600'],
+      trip:    [Send,          'bg-sky-50 text-sky-600'],
+      message: [MessageCircle, 'bg-emerald-50 text-emerald-600'],
+      kyc:     [Shield,        'bg-violet-50 text-violet-600'],
+      system:  [Bell,          'bg-slate-100 text-slate-600'],
+    };
+    const pinned = announcements.filter(a => a.pinned);
+    const updates = announcements.filter(a => !a.pinned);
+    const AnnouncementRow = ({ a }) => (
+      <li className="flex gap-3 px-5 py-4">
+        <span className="w-9 h-9 rounded-lg bg-slate-100 text-slate-500 flex items-center justify-center shrink-0"><Megaphone size={16} /></span>
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold text-slate-900">{a.title}</span>
+          <span className="block text-[13px] text-slate-600 mt-0.5 leading-relaxed">{a.body}</span>
+          {a.createdAt && <span className="block text-xs text-slate-400 mt-1">{timeLabel(a.createdAt)}</span>}
+        </span>
+      </li>
+    );
+    return (
+      <div className="space-y-6">
+        <PageHeader title="Notifications" sub="Activity on your trips, parcels and account, plus updates from Kabutar."
+          actions={<>
+            {notifications.some(n => n.read) && (
+              <button type="button" onClick={clearRead} className={`${btn.secondary} ${btn.md}`}><Trash2 size={15} /> Clear read</button>
+            )}
+            {unread > 0 && (
+              <button type="button" onClick={markAllRead} className={`${btn.primary} ${btn.md}`}><CheckCheck size={16} /> Mark all as read</button>
+            )}
+          </>} />
+
+        <div className="grid grid-cols-[minmax(0,1fr)_340px] gap-8 items-start">
+          <section className="min-w-0">
+            <h2 className="text-[17px] font-semibold text-slate-900 mb-3 flex items-center gap-2">
+              Your activity {unread > 0 && <span className="text-[11px] font-semibold px-1.5 py-0.5 rounded-md bg-kb-50 text-kb-700">{unread} unread</span>}
+            </h2>
+            {loading ? (
+              <Card className="divide-y divide-slate-100">{[0, 1, 2].map(i => <div key={i} className="h-[72px] px-5 py-4"><div className="h-full bg-slate-100 rounded-lg animate-pulse" /></div>)}</Card>
+            ) : !user ? (
+              <Card><EmptyState icon={Bell} title="Log in to see your notifications"
+                body="Trip requests, parcel updates and messages show up here." actionLabel="Log in" onAction={() => navigate('/login', { state: { from: '/notifications' } })} /></Card>
+            ) : notifications.length === 0 ? (
+              <Card><EmptyState icon={Bell} title="You're all caught up" body="New activity on your trips and parcels will appear here." /></Card>
+            ) : (
+              <div className="space-y-5">
+                {Object.entries(groups).map(([day, items]) => (
+                  <div key={day}>
+                    <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">{day}</p>
+                    <Card className="divide-y divide-slate-100 overflow-hidden">
+                      {items.map(notif => {
+                        const [Icon, cls] = DESK_TYPE[notif.type] || DESK_TYPE.system;
+                        return (
+                          <button key={notif._id} type="button" onClick={() => handleNotifTap(notif)}
+                            className={`w-full text-left flex gap-4 px-5 py-4 transition-colors ${notif.read ? 'hover:bg-slate-50' : 'bg-kb-50/40 hover:bg-kb-50'}`}>
+                            <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cls}`}><Icon size={17} /></span>
+                            <span className="flex-1 min-w-0">
+                              <span className={`block text-sm ${notif.read ? 'font-medium text-slate-700' : 'font-semibold text-slate-900'}`}>{notif.title}</span>
+                              {notif.body && <span className="block text-[13px] text-slate-500 mt-0.5 leading-relaxed">{notif.body}</span>}
+                            </span>
+                            <span className="flex flex-col items-end gap-2 shrink-0">
+                              <span className="text-xs text-slate-400 whitespace-nowrap">{timeLabel(notif.createdAt)}</span>
+                              {!notif.read && <span className="w-2 h-2 rounded-full bg-kb-500" aria-label="Unread" />}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </Card>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          <aside className="space-y-5 sticky top-24">
+            {pinned.length > 0 && (
+              <Card>
+                <h3 className="px-5 pt-4 text-sm font-semibold text-slate-900">Pinned</h3>
+                <ul className="divide-y divide-slate-100">{pinned.map(a => <AnnouncementRow key={a._id} a={a} />)}</ul>
+              </Card>
+            )}
+            <Card>
+              <h3 className="px-5 pt-4 text-sm font-semibold text-slate-900">Updates from Kabutar</h3>
+              {loading ? <div className="p-5"><div className="h-12 bg-slate-100 rounded-lg animate-pulse" /></div> :
+               updates.length === 0 ? <p className="px-5 py-4 text-[13px] text-slate-500">No updates right now.</p> :
+               <ul className="divide-y divide-slate-100">{updates.map(a => <AnnouncementRow key={a._id} a={a} />)}</ul>}
+            </Card>
+          </aside>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="px-4 py-5 pb-8">
