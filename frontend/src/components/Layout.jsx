@@ -8,6 +8,8 @@ import api from '../lib/api';
 import { getSocket } from '../lib/socket';
 import PostTripModal from '../pages/../components/PostTripModal';
 import PostParcelModal from '../pages/../components/PostParcelModal';
+import DesktopHeader from './desktop/DesktopHeader';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
 
 export default function Layout() {
   const { user } = useAuth();
@@ -94,6 +96,44 @@ export default function Layout() {
       }
     });
   };
+
+  // Landing-page CTAs ("I'm Travelling" / "Send a Parcel") arrive with an intent
+  // in router state — open the matching post flow once, then clear the state.
+  const intent = location.state?.intent;
+  useEffect(() => {
+    if (intent !== 'trip' && intent !== 'parcel') return;
+    navigate(location.pathname, { replace: true, state: null });
+    const t = setTimeout(() => handleFab(intent), 0);
+    return () => clearTimeout(t);
+  }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const isDesktopWeb = useDesktopWeb();
+
+  // ── Desktop browser shell (the Capacitor app never takes this branch) ──
+  if (isDesktopWeb) {
+    return (
+      <div className="min-h-screen bg-canvas font-inter text-slate-900 antialiased">
+        <DesktopHeader
+          chatUnread={chatUnread}
+          notifUnread={notifUnread}
+          onOpenNotifications={() => { localStorage.setItem('kabutar_alerts_seen', Date.now().toString()); setNotifUnread(0); navigate('/notifications'); }}
+          onOpenMessages={() => authGate(() => { setChatUnread(0); navigate('/messages'); })}
+          onPost={handleFab}
+        />
+        <main className="max-w-[1280px] mx-auto px-8 py-8">
+          <Outlet />
+        </main>
+        {showTripModal && (
+          <PostTripModal onClose={() => setShowTripModal(false)}
+            onSuccess={() => setShowTripModal(false)} />
+        )}
+        {showParcelModal && (
+          <PostParcelModal onClose={() => setShowParcelModal(false)}
+            onSuccess={() => setShowParcelModal(false)} />
+        )}
+      </div>
+    );
+  }
 
   const Badge = ({ count }) => count > 0 ? (
     <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-red-500 text-white text-[9px] font-black rounded-full flex items-center justify-center px-1 leading-none">

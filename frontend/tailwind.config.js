@@ -7,8 +7,22 @@ export default {
         sans: ['Sora', 'sans-serif'],
         display: ['Clash Display', 'sans-serif'],
         mono: ['JetBrains Mono', 'monospace'],
+        // Desktop-web redesign (landing + desktop app shell) — mobile keeps Sora
+        inter: ['Inter', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
       },
       colors: {
+        // Desktop-web redesign palette. Text uses Tailwind's default `slate`
+        // (navy/charcoal), which this config leaves untouched.
+        kb: {
+          50:  '#FFF5ED',
+          100: '#FFE8D5',
+          200: '#FFD0AB',
+          300: '#FFB07A',
+          500: '#FF6B0A',
+          600: '#E85D00',
+          700: '#C24D00',
+        },
+        canvas: '#FAF9F7',
         brand: {
           50: '#fff7ed', 100: '#ffedd5', 200: '#fed7aa', 300: '#fdba74',
           400: '#fb923c', 500: '#f97316', 600: '#ea580c', 700: '#c2410c',

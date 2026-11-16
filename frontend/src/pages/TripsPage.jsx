@@ -65,7 +65,7 @@ export default function TripsPage() {
   const [search,     setSearch]     = useState({
     from: location.state?.from || '',
     to:   location.state?.to   || '',
-    date: '',
+    date: location.state?.date || '',
   });
   const [activeFilter, setActiveFilter] = useState('all'); // 'all' | 'nearby' | 'recent'
 

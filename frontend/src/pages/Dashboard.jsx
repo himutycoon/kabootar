@@ -12,6 +12,8 @@ import {
   X, ArrowLeftRight, MapPin, Sparkles,
 } from 'lucide-react';
 import PostCard from '../components/PostCard';
+import DesktopDashboard from './desktop/DesktopDashboard';
+import { useDesktopWeb } from '../hooks/useDesktopWeb';
 
 const today = new Date().toISOString().split('T')[0];
 
@@ -75,7 +77,14 @@ const ANNOUNCE_STYLE = {
   feature: 'border-orange-200 bg-orange-50',
 };
 
+// Desktop browsers get the redesigned dashboard; the Android app and phone
+// browsers keep the original mobile dashboard below, unchanged.
 export default function Dashboard() {
+  const isDesktopWeb = useDesktopWeb();
+  return isDesktopWeb ? <DesktopDashboard /> : <MobileDashboard />;
+}
+
+function MobileDashboard() {
   const { user } = useAuth();
   const navigate  = useNavigate();
   const authGate  = useAuthGate();
