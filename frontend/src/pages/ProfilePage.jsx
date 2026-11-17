@@ -14,7 +14,6 @@ import {
   Settings, ChevronRight, Award, Truck, MessageCircle,
   UserCheck, FileText, HelpCircle, Trash, Share2,
 } from 'lucide-react';
-import KYCUploadModal from '../components/KYCUploadModal';
 import PhoneVerifyModal from '../components/PhoneVerifyModal';
 import PostTripModal from '../components/PostTripModal';
 import PostParcelModal from '../components/PostParcelModal';
@@ -66,7 +65,6 @@ export default function ProfilePage() {
   const [draft,            setDraft]            = useState({ name: user?.name || '', phone: currentPhone, city: user?.city || '', bio: user?.bio || '' });
   const [saving,           setSaving]           = useState(false);
   const [uploadingPhoto,   setUploadingPhoto]   = useState(false);
-  const [showKyc,          setShowKyc]          = useState(false);
   const [showPhoneVerify,  setShowPhoneVerify]  = useState(false);
   const [myTrips,          setMyTrips]          = useState([]);
   const [myParcels,        setMyParcels]        = useState([]);
@@ -219,7 +217,6 @@ export default function ProfilePage() {
   const modals = (
     <>
       {/* ── MODALS ── */}
-      {showKyc && <KYCUploadModal onClose={() => setShowKyc(false)} onSuccess={() => { setShowKyc(false); refreshUser(); }} />}
       {showPhoneVerify && (
         <PhoneVerifyModal
           onClose={() => setShowPhoneVerify(false)}

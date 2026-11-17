@@ -4,7 +4,9 @@ import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Phone, Shield, ArrowRight, ChevronLeft } from 'lucide-react';
+import { Shield, ArrowRight } from 'lucide-react';
+import { Sheet } from './mobile/ui';
+import { m } from './mobile/styles';
 
 // Props:
 //   onClose()          — close the modal
@@ -46,7 +48,7 @@ export default function PhoneVerifyModal({ onClose, onSuccess, prefillPhone }) {
       const result   = await signInWithPhoneNumber(auth, fullPhone, verifier);
       setConfirmResult(result);
       setStep('otp');
-      toast.success('OTP sent!');
+      toast.success('Code sent');
     } catch (err) {
       toast.error(err.message || 'Failed to send OTP');
       rcRef.current = null; // reset so it can be re-created
@@ -64,7 +66,7 @@ export default function PhoneVerifyModal({ onClose, onSuccess, prefillPhone }) {
       const { data } = await api.post('/auth/me/phone', { phone: `+91${phone}` });
       localStorage.setItem('kabootar_user', JSON.stringify(data.user));
       setUser(data.user);
-      toast.success('Phone verified! ✓');
+      toast.success('Phone number verified');
       onSuccess?.(data.user);
       onClose();
     } catch (err) {
@@ -95,127 +97,50 @@ export default function PhoneVerifyModal({ onClose, onSuccess, prefillPhone }) {
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
-
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100">
-          <div className="flex items-center gap-2">
-            <Phone size={18} className="text-orange-500" />
-            <h2 className="font-bold text-stone-900">
-              {step === 'phone' ? 'Add Phone Number' : 'Verify OTP'}
-            </h2>
-          </div>
-          <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
-        </div>
-
-        <div className="px-5 py-5 space-y-4">
-
-          {/* ── Step 1: Phone input ── */}
-          {step === 'phone' && (
-            <>
-              <div className="bg-orange-50 border border-orange-100 rounded-xl px-4 py-3 text-sm text-stone-600 leading-relaxed">
-                📱 Add your phone number so senders can trust you. We'll verify it with a one-time SMS code.
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-600 mb-1.5">
-                  Indian mobile number
-                </label>
-                <div className="flex gap-2">
-                  <div className="input-field w-14 text-center font-semibold text-stone-600 shrink-0 flex items-center justify-center select-none">
-                    +91
-                  </div>
-                  <input
-                    className="input-field flex-1"
-                    placeholder="9876543210"
-                    value={phone}
-                    onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-                    onKeyDown={e => e.key === 'Enter' && sendOtp()}
-                    type="tel"
-                    inputMode="numeric"
-                    maxLength={10}
-                    autoFocus
-                  />
-                </div>
-                <p className="text-[11px] text-stone-400 mt-1.5">
-                  Must start with 6, 7, 8, or 9. Standard SMS rates apply.
-                </p>
-              </div>
-
-              <button
-                onClick={() => sendOtp()}
-                disabled={loading || phone.length !== 10}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                {loading
-                  ? <>Sending…</>
-                  : <><ArrowRight size={15} /> Send OTP</>}
-              </button>
-            </>
-          )}
-
-          {/* ── Step 1b: Sending OTP (prefill flow) ── */}
-          {step === 'sending' && (
-            <div className="py-6 text-center text-stone-400 text-sm">
-              Sending OTP to +91 {phone}…
+    <Sheet title={step === 'otp' ? 'Enter the code' : 'Verify your phone'} onClose={onClose}>
+      {step === 'phone' && (
+        <div className="space-y-4">
+          <p className="text-[15px] text-slate-600">We'll text a one-time code to confirm the number is yours. A verified number helps senders trust you.</p>
+          <div>
+            <label htmlFor="pv-phone" className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile number</label>
+            <div className="flex items-stretch h-12 rounded-xl border border-slate-200 focus-within:border-kb-500 focus-within:ring-4 focus-within:ring-kb-100 overflow-hidden">
+              <span className="flex items-center px-3.5 text-[15px] font-semibold text-slate-600 border-r border-slate-200 bg-slate-50">+91</span>
+              <input id="pv-phone" className="flex-1 min-w-0 px-3.5 text-[16px] outline-none" placeholder="98765 43210"
+                value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                onKeyDown={e => e.key === 'Enter' && sendOtp()} type="tel" inputMode="numeric" autoComplete="tel-national" maxLength={10} autoFocus />
             </div>
-          )}
-
-          {/* ── Step 2: OTP input ── */}
-          {step === 'otp' && (
-            <>
-              <div className="flex items-center gap-2 text-sm text-stone-600">
-                <span>OTP sent to</span>
-                <span className="font-semibold text-stone-900">+91 {phone}</span>
-                <button
-                  onClick={resend}
-                  className="ml-auto text-orange-500 text-xs font-semibold flex items-center gap-0.5"
-                >
-                  <ChevronLeft size={12} /> Change
-                </button>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-stone-600 mb-2">
-                  Enter the 6-digit code
-                </label>
-                <div className="flex gap-2 justify-between">
-                  {otp.map((d, i) => (
-                    <input
-                      key={i}
-                      ref={el => (otpRefs.current[i] = el)}
-                      className="w-11 h-12 text-center text-lg font-bold border-2 border-stone-200 focus:border-orange-400 rounded-xl outline-none transition-colors"
-                      value={d}
-                      onChange={e => handleDigit(e.target.value, i)}
-                      onKeyDown={e => handleKey(e, i)}
-                      inputMode="numeric"
-                      maxLength={1}
-                      autoFocus={i === 0}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <button
-                onClick={verifyOtp}
-                disabled={loading || otp.join('').length !== 6}
-                className="btn-primary w-full flex items-center justify-center gap-2"
-              >
-                <Shield size={15} />
-                {loading ? 'Verifying…' : 'Verify & Save'}
-              </button>
-
-              <button onClick={resend} className="btn-secondary w-full text-sm">
-                Didn't receive? Resend OTP
-              </button>
-            </>
-          )}
+          </div>
+          <button type="button" onClick={() => sendOtp()} disabled={loading || phone.length !== 10} className={`${m.btnPrimary} w-full`}>
+            {loading ? 'Sending…' : <>Send code <ArrowRight size={17} /></>}
+          </button>
         </div>
+      )}
 
-        {/* Invisible recaptcha container */}
-        <div id="recaptcha-phone-container" />
-      </div>
-    </div>
+      {step === 'sending' && <p className="py-6 text-center text-[15px] text-slate-500">Sending a code to +91 {phone}…</p>}
+
+      {step === 'otp' && (
+        <div className="space-y-4">
+          <p className="text-[15px] text-slate-600">
+            Sent to <span className="font-semibold text-slate-900">+91 {phone}</span>{' '}
+            <button type="button" onClick={resend} className="text-kb-600 font-semibold">Change</button>
+          </p>
+          <div className="grid grid-cols-6 gap-2">
+            {otp.map((d, i) => (
+              <input key={i} ref={el => (otpRefs.current[i] = el)} aria-label={`Digit ${i + 1}`}
+                className="w-full h-14 text-center text-[22px] font-semibold rounded-xl border border-slate-200 outline-none focus:border-kb-500 focus:ring-4 focus:ring-kb-100"
+                value={d} onChange={e => handleDigit(e.target.value, i)} onKeyDown={e => handleKey(e, i)}
+                inputMode="numeric" maxLength={1} autoComplete={i === 0 ? 'one-time-code' : 'off'} autoFocus={i === 0} />
+            ))}
+          </div>
+          <button type="button" onClick={verifyOtp} disabled={loading || otp.join('').length !== 6} className={`${m.btnPrimary} w-full`}>
+            <Shield size={17} /> {loading ? 'Verifying…' : 'Verify and save'}
+          </button>
+          <button type="button" onClick={resend} className="w-full h-11 text-[14px] font-semibold text-slate-600">Didn't get it? Send a new code</button>
+        </div>
+      )}
+
+      {/* Invisible reCAPTCHA container */}
+      <div id="recaptcha-phone-container" />
+    </Sheet>
   );
 }

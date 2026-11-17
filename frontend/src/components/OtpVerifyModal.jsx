@@ -1,7 +1,9 @@
 import { useState, useRef } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Shield, Copy, Check } from 'lucide-react';
+import { Copy, Check, KeyRound } from 'lucide-react';
+import { Sheet } from './mobile/ui';
+import { m } from './mobile/styles';
 
 export default function OtpVerifyModal({ parcel, type, onClose, onSuccess }) {
   const [step, setStep]       = useState('generate');
@@ -48,7 +50,7 @@ export default function OtpVerifyModal({ parcel, type, onClose, onSuccess }) {
     setLoading(true);
     try {
       const { data } = await api.post(`/otp/${type}/verify`, { parcelId: parcel._id, otp: code });
-      toast.success(`${label} confirmed! ✓`);
+      toast.success(`${label} confirmed`);
       onSuccess(data.parcel);
       onClose();
     } catch (err) {
@@ -73,108 +75,61 @@ export default function OtpVerifyModal({ parcel, type, onClose, onSuccess }) {
     if (e.key === 'Backspace' && !otp[idx] && idx > 0) refs.current[idx - 1]?.focus();
   };
 
+  const digitBox = 'w-full h-14 text-center text-[22px] font-semibold rounded-xl border outline-none transition-colors border-slate-200 focus:border-kb-500 focus:ring-4 focus:ring-kb-100';
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100">
-          <div className="flex items-center gap-2">
-            <Shield size={18} className="text-orange-500" />
-            <h2 className="font-bold text-stone-900">Confirm {label}</h2>
+    <Sheet title={`Confirm ${label.toLowerCase()}`} onClose={onClose}
+      footer={step === 'generate'
+        ? <button type="button" onClick={generate} disabled={loading} className={`${m.btnPrimary} w-full`}><KeyRound size={18} /> {loading ? 'Creating code…' : `Create ${label.toLowerCase()} code`}</button>
+        : (
+          <div className="flex gap-3">
+            <button type="button" onClick={() => { setStep('generate'); setOtp(['', '', '', '', '', '']); setGeneratedOtp(''); }} className={`${m.btnSecondary} flex-1`}>New code</button>
+            <button type="button" onClick={verify} disabled={loading} className={`${m.btnPrimary} flex-[2]`}>{loading ? 'Confirming…' : `Confirm ${label.toLowerCase()}`}</button>
           </div>
-          <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
+        )}>
+      {step === 'generate' ? (
+        <div>
+          <p className="text-[15px] text-slate-600">Confirm the {label.toLowerCase()} in person with a one-time code.</p>
+          <ol className="mt-4 space-y-3">
+            {[
+              'Create a 6-digit code below',
+              `Share it with the ${type === 'pickup' ? 'sender' : 'receiver'} when you meet`,
+              'They read it back to you, and you enter it to confirm',
+            ].map((t, i) => (
+              <li key={t} className="flex gap-3 text-[14px] text-slate-700">
+                <span className="w-6 h-6 rounded-full border border-slate-300 text-[12px] font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
+                {t}
+              </li>
+            ))}
+          </ol>
         </div>
-
-        <div className="px-5 py-5 space-y-4">
-          {step === 'generate' ? (
-            <>
-              {/* How it works */}
-              <div className="bg-stone-50 rounded-xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-stone-700">How {label} OTP works:</p>
-                <ol className="space-y-1.5">
-                  {[
-                    `Tap "Generate OTP" below`,
-                    `A 6-digit code is created`,
-                    `Share it verbally with the ${type === 'pickup' ? 'sender at the station' : 'receiver at their door'}`,
-                    `They read it back to you — enter it to confirm`,
-                  ].map((s, i) => (
-                    <li key={i} className="text-xs text-stone-500 flex gap-2">
-                      <span className="text-orange-500 font-bold shrink-0">{i + 1}.</span> {s}
-                    </li>
-                  ))}
-                </ol>
-              </div>
-              <button onClick={generate} disabled={loading}
-                className="btn-primary w-full flex items-center justify-center gap-2">
-                {loading ? 'Generating…' : `🔐 Generate ${label} OTP`}
-              </button>
-            </>
-          ) : (
-            <>
-              {/* Show the OTP to traveler (MVP — no SMS yet) */}
-              {generatedOtp && (
-                <div className="bg-orange-50 border border-orange-200 rounded-xl p-4">
-                  <p className="text-[11px] text-orange-600 font-semibold mb-2 uppercase tracking-wide">
-                    Your OTP — share this with the {type === 'pickup' ? 'sender' : 'receiver'}
-                  </p>
-                  <div className="flex items-center gap-3">
-                    <div className="flex gap-1.5">
-                      {generatedOtp.split('').map((d, i) => (
-                        <div key={i} className="w-9 h-10 bg-white border-2 border-orange-300 rounded-lg flex items-center justify-center font-bold text-lg text-orange-600">
-                          {d}
-                        </div>
-                      ))}
-                    </div>
-                    <button onClick={copyOtp}
-                      className="ml-auto flex items-center gap-1 text-xs font-semibold text-orange-500 hover:text-orange-700">
-                      {copied ? <><Check size={13} /> Copied</> : <><Copy size={13} /> Copy</>}
-                    </button>
-                  </div>
-                  <p className="text-[11px] text-stone-400 mt-2">
-                    Ask the {type === 'pickup' ? 'sender' : 'receiver'} to read this back, then enter it below.
-                  </p>
-                </div>
-              )}
-
-              {/* OTP entry */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-sm font-semibold text-stone-700">
-                    Enter the OTP to confirm {label.toLowerCase()}:
-                  </p>
-                  {generatedOtp && (
-                    <button onClick={autoFill}
-                      className="text-[11px] text-orange-500 font-semibold hover:underline">
-                      Auto-fill
-                    </button>
-                  )}
-                </div>
-                <div className={`flex gap-2 justify-between ${shaking ? 'animate-bounce' : ''}`}>
-                  {otp.map((d, i) => (
-                    <input key={i} ref={el => (refs.current[i] = el)}
-                      className="w-11 h-12 text-center text-lg font-bold border-2 border-stone-200 focus:border-orange-400 rounded-xl outline-none transition-colors"
-                      value={d}
-                      onChange={e => handleDigit(e.target.value, i)}
-                      onKeyDown={e => handleKey(e, i)}
-                      inputMode="numeric" maxLength={1}
-                      autoFocus={i === 0}
-                    />
-                  ))}
-                </div>
-              </div>
-
-              <div className="flex gap-3">
-                <button onClick={() => { setStep('generate'); setOtp(['','','','','','']); setGeneratedOtp(''); }}
-                  className="btn-secondary flex-1">
-                  Regenerate
-                </button>
-                <button onClick={verify} disabled={loading} className="btn-primary flex-1">
-                  {loading ? 'Verifying…' : `Confirm ${label}`}
+      ) : (
+        <div className="space-y-5">
+          {generatedOtp && (
+            <div className="border border-kb-200 bg-kb-50 rounded-2xl p-4">
+              <p className="text-[13px] font-semibold text-kb-700">Code to share with the {type === 'pickup' ? 'sender' : 'receiver'}</p>
+              <div className="flex items-center gap-3 mt-2">
+                <span className="text-[28px] font-semibold tracking-[0.3em] text-slate-900 font-mono">{generatedOtp}</span>
+                <button type="button" onClick={copyOtp} className={`${m.btnSmall} ml-auto border border-kb-200 bg-white text-kb-700`}>
+                  {copied ? <><Check size={14} /> Copied</> : <><Copy size={14} /> Copy</>}
                 </button>
               </div>
-            </>
+            </div>
           )}
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[14px] font-semibold text-slate-800">Enter the code they read back</p>
+              {generatedOtp && <button type="button" onClick={autoFill} className="text-[13px] font-semibold text-kb-600">Auto-fill</button>}
+            </div>
+            <div className={`grid grid-cols-6 gap-2 ${shaking ? 'animate-bounce' : ''}`}>
+              {otp.map((d, i) => (
+                <input key={i} ref={el => (refs.current[i] = el)} className={digitBox} aria-label={`Digit ${i + 1}`}
+                  value={d} onChange={e => handleDigit(e.target.value, i)} onKeyDown={e => handleKey(e, i)}
+                  inputMode="numeric" maxLength={1} autoFocus={i === 0} />
+              ))}
+            </div>
+          </div>
         </div>
-      </div>
-    </div>
+      )}
+    </Sheet>
   );
 }

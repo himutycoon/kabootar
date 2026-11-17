@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { pushBackHandler } from '../lib/backStack';
 import { X, Plus, Minus, Package, Trash2, ChevronDown } from 'lucide-react';
 
 // Common item presets grouped by category
@@ -111,6 +112,9 @@ export default function WeightCalculator({ onApply, onClose }) {
     setBoxL(''); setBoxW(''); setBoxH(''); setShowBox(false);
   };
 
+  // Android back closes the calculator (not the form underneath)
+  useEffect(() => pushBackHandler(() => onClose?.()), [onClose]);
+
   const handleApply = () => {
     const rounded = Math.max(0.1, parseFloat(totalKg.toFixed(2)));
     onApply(rounded);
@@ -124,13 +128,13 @@ export default function WeightCalculator({ onApply, onClose }) {
         style={{ maxHeight: '92vh', display: 'flex', flexDirection: 'column', animation: 'slideUp 0.3s ease both' }}>
 
         {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-stone-100 shrink-0">
+        <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-slate-200 shrink-0 font-inter">
           <div>
-            <h2 className="font-black text-stone-900 text-base">⚖️ Weight Calculator</h2>
-            <p className="text-[11px] text-stone-400 mt-0.5">Tap items to add · get total weight estimate</p>
+            <h2 className="text-[17px] font-semibold text-slate-900">Estimate weight</h2>
+            <p className="text-[13px] text-slate-500 mt-0.5">Add the items you're sending to get a rough total</p>
           </div>
-          <button onClick={onClose} className="w-9 h-9 bg-stone-100 rounded-xl flex items-center justify-center active:scale-90 transition-all">
-            <X size={16} className="text-stone-500" />
+          <button onClick={onClose} aria-label="Close" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100 hover:bg-slate-100">
+            <X size={20} />
           </button>
         </div>
 

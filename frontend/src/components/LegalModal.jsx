@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { pushBackHandler } from '../lib/backStack';
 import { X } from 'lucide-react';
 
 const TERMS = `
@@ -196,18 +197,20 @@ export default function LegalModal({ type, onClose }) {
 
   useEffect(() => {
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = ''; };
-  }, []);
+    const unregisterBack = pushBackHandler(() => onClose?.());
+    return () => { document.body.style.overflow = ''; unregisterBack(); };
+  }, [onClose]);
 
   return (
-    <div className="fixed inset-0 z-[200] flex flex-col bg-white animate-slide-up">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-white animate-slide-up font-inter"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-4 border-b border-stone-100 shrink-0 bg-white">
-        <button onClick={onClose}
-          className="w-9 h-9 rounded-xl bg-stone-100 flex items-center justify-center active:scale-90 transition-all">
-          <X size={18} className="text-stone-600" />
+      <div className="flex items-center gap-2 px-4 h-14 border-b border-slate-200 shrink-0 bg-white">
+        <button onClick={onClose} aria-label="Close"
+          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 active:bg-slate-100 hover:bg-slate-100">
+          <X size={20} />
         </button>
-        <h2 className="font-black text-stone-900 text-base">{title}</h2>
+        <h2 className="text-[17px] font-semibold text-slate-900">{title}</h2>
       </div>
 
       {/* Content */}
@@ -218,25 +221,25 @@ export default function LegalModal({ type, onClose }) {
           // Section headings (ALL CAPS numbered)
           if (/^\d+\.\s+[A-Z\s&']+$/.test(trimmed) || /^[A-Z\s&']{4,}$/.test(trimmed)) {
             return (
-              <p key={i} className="text-sm font-black text-stone-900 mt-5 mb-2 uppercase tracking-wide">
+              <p key={i} className="text-[14px] font-semibold text-slate-900 mt-6 mb-2">
                 {trimmed}
               </p>
             );
           }
           // Sub-headings (1.1, 1.2 …)
           if (/^\d+\.\d+\s/.test(trimmed)) {
-            return <p key={i} className="text-sm font-bold text-stone-800 mt-3 mb-1">{trimmed}</p>;
+            return <p key={i} className="text-[14px] font-semibold text-slate-800 mt-3 mb-1">{trimmed}</p>;
           }
           // Bullet points
           if (trimmed.startsWith('•')) {
             return (
-              <p key={i} className="text-[13px] text-stone-600 leading-relaxed pl-3 mb-0.5">
+              <p key={i} className="text-[14px] text-slate-600 leading-relaxed pl-3 mb-0.5">
                 {trimmed}
               </p>
             );
           }
           // Regular paragraph
-          return <p key={i} className="text-[13px] text-stone-600 leading-relaxed mb-1">{trimmed}</p>;
+          return <p key={i} className="text-[14px] text-slate-600 leading-relaxed mb-1">{trimmed}</p>;
         })}
         <div className="h-8" />
       </div>

@@ -1,26 +1,21 @@
-import { useState } from 'react';
+import { createElement, useState } from 'react';
+import { Route, MessageCircle, ShieldCheck, ArrowRight } from 'lucide-react';
 
 const SLIDES = [
   {
-    emoji: '🕊️',
-    title: 'Same route.\nShared journey.',
-    body: 'Kabutar connects travelers and senders on the same route — so parcels reach their destination with people already going there.',
-    from: '#f97316',
-    to: '#ea580c',
+    icon: Route,
+    title: 'Same route, shared journey',
+    body: 'Kabutar connects people travelling between cities with people who need parcels sent the same way.',
   },
   {
-    emoji: '💬',
-    title: 'Post. Match.\nChat. Deliver.',
-    body: 'Post your trip or parcel in 60 seconds. Get matched instantly. Negotiate price in chat. Confirm with OTP — no middlemen.',
-    from: '#6d28d9',
-    to: '#2563eb',
+    icon: MessageCircle,
+    title: 'Post, chat, deliver',
+    body: 'Post a trip or a parcel in a minute. Agree the details in chat, then confirm pickup and delivery in the app.',
   },
   {
-    emoji: '🔐',
-    title: 'Built on trust,\nnot promises.',
-    body: 'KYC verification, two-way ratings, and photo proof at pickup and delivery. Every delivery is secure and traceable.',
-    from: '#059669',
-    to: '#0d9488',
+    icon: ShieldCheck,
+    title: 'Built on trust',
+    body: 'Travellers verify their ID before posting trips. Handovers are confirmed with photos and one-time codes, and reviews come only from completed deliveries.',
   },
 ];
 
@@ -34,61 +29,38 @@ export default function Onboarding({ onDone }) {
     localStorage.setItem('kabutar_onboarded', '1');
     onDone?.();
   };
-
-  const next = () => last ? done() : setIdx(i => i + 1);
+  const next = () => (last ? done() : setIdx(i => i + 1));
 
   return (
-    <div
-      className="fixed inset-0 z-[9998] flex flex-col"
-      style={{
-        background: `linear-gradient(160deg, ${slide.from} 0%, ${slide.to} 100%)`,
-        transition: 'background 0.5s ease',
-        paddingTop:    'env(safe-area-inset-top, 0px)',
-        paddingBottom: 'env(safe-area-inset-bottom, 0px)',
-      }}
-    >
-      {/* Skip */}
-      <div className="flex justify-end px-6 pt-4">
+    <div className="fixed inset-0 z-[9998] flex flex-col bg-[#FAF9F7] font-inter text-slate-900"
+      style={{ paddingTop: 'env(safe-area-inset-top, 0px)', paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
+      <div className="flex items-center justify-between px-5 pt-4 h-14">
+        <img src="/brand/logo-64.png" alt="Kabutar" width={32} height={32} className="w-8 h-8 rounded-lg" />
         {!last && (
-          <button onClick={done} className="text-white/70 text-sm font-semibold px-2 py-1">
-            Skip
-          </button>
+          <button onClick={done} className="h-10 px-3 rounded-lg text-[14px] font-semibold text-slate-600 active:bg-slate-100">Skip</button>
         )}
       </div>
 
-      {/* Content */}
-      <div className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-        <div key={idx} style={{ animation: 'slideUp 0.4s ease' }}>
-          <div className="text-7xl mb-8">{slide.emoji}</div>
-          <h1 className="text-3xl font-black text-white leading-tight mb-5 whitespace-pre-line">
-            {slide.title}
-          </h1>
-          <p className="text-white/80 text-base leading-relaxed max-w-xs mx-auto">
-            {slide.body}
-          </p>
+      <div className="flex-1 flex flex-col justify-center px-7">
+        <div key={idx} className="animate-slide-up">
+          <span className="w-20 h-20 rounded-3xl bg-kb-50 text-kb-600 flex items-center justify-center">
+            {createElement(slide.icon, { size: 38, strokeWidth: 1.8 })}
+          </span>
+          <h1 className="mt-8 text-[30px] leading-[1.15] font-semibold tracking-[-0.025em]">{slide.title}</h1>
+          <p className="mt-3 text-[16px] text-slate-600 leading-relaxed">{slide.body}</p>
         </div>
       </div>
 
-      {/* Dots + CTA */}
-      <div className="px-6 pb-8 space-y-5">
-        <div className="flex justify-center gap-2">
-          {SLIDES.map((_, i) => (
-            <button
-              key={i}
-              onClick={() => setIdx(i)}
-              className={`rounded-full transition-all duration-300 ${
-                i === idx ? 'w-6 h-2 bg-white' : 'w-2 h-2 bg-white/40'
-              }`}
-            />
+      <div className="px-5 pb-6 space-y-6">
+        <div className="flex gap-2" role="tablist" aria-label="Onboarding progress">
+          {SLIDES.map((s, i) => (
+            <button key={s.title} onClick={() => setIdx(i)} role="tab" aria-selected={i === idx} aria-label={`Slide ${i + 1}`}
+              className={`h-1.5 rounded-full transition-all duration-300 ${i === idx ? 'w-8 bg-kb-500' : 'w-4 bg-slate-300'}`} />
           ))}
         </div>
-
-        <button
-          onClick={next}
-          className="w-full py-4 rounded-2xl bg-white font-bold text-base active:scale-95 transition-all"
-          style={{ color: slide.from }}
-        >
-          {last ? 'Get Started 🚀' : 'Next →'}
+        <button onClick={next}
+          className="w-full h-[52px] rounded-xl bg-kb-500 active:bg-kb-600 text-white text-[16px] font-semibold flex items-center justify-center gap-2">
+          {last ? 'Get started' : 'Next'} <ArrowRight size={18} />
         </button>
       </div>
     </div>

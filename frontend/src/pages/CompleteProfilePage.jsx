@@ -51,7 +51,7 @@ export default function CompleteProfilePage() {
       // Save name + phone
       await api.patch('/auth/me', { name: name.trim(), phone: `+91${phone}` });
       await refreshUser();
-      toast.success('Profile complete! Welcome 🕊️');
+      toast.success('Profile complete. Welcome to Kabutar');
       navigate('/', { replace: true });
     } catch (err) {
       if (err.response?.status === 409) {
@@ -66,128 +66,67 @@ export default function CompleteProfilePage() {
     }
   };
 
+  const steps = [['Name', checks[0]], ['Phone', checks[1]], ['Photo', checks[2]]];
   return (
-    <div className="min-h-screen bg-stone-50 flex flex-col items-center justify-center px-4">
-      {/* Hero strip */}
-      <div className="w-full max-w-md bg-gradient-to-br from-orange-500 to-orange-600 rounded-t-2xl px-6 py-8 text-white text-center">
-        <div className="text-4xl mb-2">🕊️</div>
-        <h1 className="text-xl font-bold tracking-tight">Complete your profile</h1>
-        <p className="text-orange-100 text-sm mt-1">Helps others trust you on kabutar</p>
-      </div>
+    <div className="min-h-[100dvh] bg-[#FAF9F7] font-inter text-slate-900 flex flex-col sm:items-center sm:justify-center"
+      style={{ paddingTop: 'calc(env(safe-area-inset-top, 0px) + 16px)', paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 16px)' }}>
+      <div className="w-full sm:max-w-md px-5 sm:px-0">
+        <img src="/brand/logo-64.png" alt="" width={36} height={36} className="w-9 h-9 rounded-lg" />
+        <h1 className="mt-5 text-[26px] font-semibold tracking-[-0.02em]">Complete your profile</h1>
+        <p className="mt-1.5 text-[15px] text-slate-600">A name, phone number and photo help travellers and senders trust you.</p>
 
-      <div className="bg-white rounded-b-2xl border border-stone-100 shadow-sm p-6 w-full max-w-md space-y-5">
-        {/* Progress indicator */}
-        <div className="flex gap-2">
-          {['Name', 'Phone', 'Photo'].map((label, i) => (
-            <div key={label} className="flex-1 flex flex-col items-center gap-1">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all ${
-                checks[i]
-                  ? 'bg-emerald-500 border-emerald-500 text-white'
-                  : 'border-stone-200 text-stone-400'
-              }`}>
-                {checks[i] ? <Check size={13} /> : i + 1}
-              </div>
-              <span className={`text-[10px] font-medium ${checks[i] ? 'text-emerald-600' : 'text-stone-400'}`}>
-                {label}
-              </span>
+        <div className="mt-6 flex gap-2">
+          {steps.map(([label, done]) => (
+            <div key={label} className="flex-1">
+              <div className={`h-1.5 rounded-full ${done ? 'bg-emerald-500' : 'bg-slate-200'}`} />
+              <p className={`mt-1.5 text-[12px] font-semibold flex items-center gap-1 ${done ? 'text-emerald-700' : 'text-slate-500'}`}>
+                {done && <Check size={12} />} {label}
+              </p>
             </div>
           ))}
         </div>
 
-        {/* Photo upload — required */}
-        <div className="flex flex-col items-center">
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            className="relative focus:outline-none group"
-            aria-label="Upload profile photo"
-          >
-            <div className={`w-24 h-24 rounded-full overflow-hidden flex items-center justify-center border-4 transition-all ${
-              photoPreview
-                ? 'border-emerald-400'
-                : 'border-dashed border-red-300 animate-pulse bg-red-50'
-            }`}>
-              {photoPreview ? (
-                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-              ) : (
-                <div className="flex flex-col items-center gap-1">
-                  <Camera size={24} className="text-red-400" />
-                  <span className="text-[10px] font-semibold text-red-400">Required</span>
-                </div>
-              )}
+        <div className="mt-6 bg-white border border-slate-200 rounded-2xl p-5 space-y-5">
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={() => fileRef.current?.click()} aria-label="Add profile photo"
+              className="relative shrink-0">
+              <span className={`w-20 h-20 rounded-full overflow-hidden flex items-center justify-center ${photoPreview ? '' : 'bg-slate-100 border-2 border-dashed border-slate-300'}`}>
+                {photoPreview
+                  ? <img src={photoPreview} alt="Profile preview" className="w-full h-full object-cover" />
+                  : <Camera size={24} className="text-slate-400" />}
+              </span>
+              <span className="absolute -bottom-0.5 -right-0.5 w-8 h-8 rounded-full bg-kb-500 text-white flex items-center justify-center ring-2 ring-white">
+                <Camera size={14} />
+              </span>
+            </button>
+            <div>
+              <p className="text-[15px] font-semibold text-slate-900">Profile photo</p>
+              <p className="text-[13px] text-slate-500 mt-0.5">{photoPreview ? 'Looks good. Tap to change it.' : 'Required. A clear photo of your face.'}</p>
             </div>
-            <div className={`absolute bottom-0 right-0 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-colors ${
-              photoPreview ? 'bg-emerald-500 group-hover:bg-emerald-600' : 'bg-red-500 group-hover:bg-red-600'
-            }`}>
-              <Camera size={14} className="text-white" />
-            </div>
-          </button>
-          {!photoPreview ? (
-            <p className="text-xs font-semibold text-red-500 mt-2">
-              Profile photo is required
-            </p>
-          ) : (
-            <p className="text-xs text-emerald-600 font-semibold mt-2">✓ Photo added</p>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="user"
-            className="hidden"
-            onChange={handlePhoto}
-          />
-        </div>
-
-        {/* Name */}
-        <div>
-          <label className="block text-xs font-semibold text-stone-600 mb-1.5">Full name</label>
-          <input
-            className="input-field"
-            placeholder="Your name"
-            value={name}
-            onChange={e => setName(e.target.value)}
-          />
-        </div>
-
-        {/* Phone */}
-        <div>
-          <label className="block text-xs font-semibold text-stone-600 mb-1.5">Phone number</label>
-          <div className="flex gap-2">
-            <div className="input-field w-14 text-center font-semibold text-stone-600 shrink-0 flex items-center justify-center">
-              +91
-            </div>
-            <input
-              className="input-field flex-1"
-              placeholder="9876543210"
-              value={phone}
-              onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
-              inputMode="numeric"
-              maxLength={10}
-            />
+            <input ref={fileRef} type="file" accept="image/*" capture="user" className="hidden" onChange={handlePhoto} />
           </div>
-          <p className="text-[11px] text-stone-400 mt-1.5">
-            Your phone will be used to verify your identity
-          </p>
+
+          <div>
+            <label htmlFor="cp-name" className="block text-[13px] font-semibold text-slate-700 mb-1.5">Full name</label>
+            <input id="cp-name" className="w-full h-12 px-4 rounded-xl border border-slate-200 text-[15px] outline-none focus:border-kb-500 focus:ring-4 focus:ring-kb-100"
+              placeholder="Your name" autoComplete="name" value={name} onChange={e => setName(e.target.value)} />
+          </div>
+
+          <div>
+            <label htmlFor="cp-phone" className="block text-[13px] font-semibold text-slate-700 mb-1.5">Mobile number</label>
+            <div className="flex items-stretch h-12 rounded-xl border border-slate-200 focus-within:border-kb-500 focus-within:ring-4 focus-within:ring-kb-100 overflow-hidden">
+              <span className="flex items-center px-3.5 text-[15px] font-semibold text-slate-600 border-r border-slate-200 bg-slate-50">+91</span>
+              <input id="cp-phone" className="flex-1 min-w-0 px-3.5 text-[15px] outline-none" placeholder="98765 43210"
+                value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, '').slice(0, 10))}
+                inputMode="numeric" autoComplete="tel-national" maxLength={10} />
+            </div>
+            <p className="text-[13px] text-slate-500 mt-1.5">Used to verify your account. It isn't shown in full to other users.</p>
+          </div>
         </div>
 
-        {/* Submit */}
-        <button
-          onClick={handleSubmit}
-          disabled={!canSubmit}
-          className="btn-primary w-full flex items-center justify-center gap-2"
-        >
-          {saving ? (
-            <>
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z" />
-              </svg>
-              Saving…
-            </>
-          ) : (
-            `Save profile (${completedCount}/3)`
-          )}
+        <button onClick={handleSubmit} disabled={!canSubmit}
+          className="mt-5 w-full h-[52px] rounded-xl bg-kb-500 active:bg-kb-600 disabled:bg-slate-200 disabled:text-slate-400 text-white text-[16px] font-semibold flex items-center justify-center gap-2 transition-colors">
+          {saving ? <><span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving…</> : `Save profile (${completedCount}/3)`}
         </button>
       </div>
     </div>
