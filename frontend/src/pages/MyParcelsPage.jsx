@@ -7,6 +7,7 @@ import { formatDistanceToNow } from 'date-fns';
 import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle, History } from 'lucide-react';
 import ParcelStatusTimeline from '../components/ParcelStatusTimeline';
 import OtpVerifyModal from '../components/OtpVerifyModal';
+import HandoverCodeCard from '../components/HandoverCodeCard';
 import PostParcelModal from '../components/PostParcelModal';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader, Tabs, EmptyState, Avatar, Pill } from '../components/desktop/ui';
@@ -267,16 +268,21 @@ export default function MyParcelsPage() {
                     {step && (
                       <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
                         <p className="text-sm font-semibold text-slate-900">{step === 'pickup' ? 'Confirm pickup' : 'Confirm delivery'}</p>
-                        <p className="text-[13px] text-slate-500 mt-0.5">Upload a {step} photo, then enter the one-time code to confirm the handover.</p>
+                        <p className="text-[13px] text-slate-500 mt-0.5">Upload a {step} photo, then send a one-time code to the sender and enter it when they give it to you.</p>
                         <div className={`flex gap-3 mt-3 ${isDesktopWeb ? 'items-center' : 'flex-col items-stretch'}`}>
                           {stepPhoto
                             ? <img src={stepPhoto} alt={`${step} photo`} className="w-16 h-16 rounded-lg object-cover border border-slate-200" />
                             : photoInput(parcel, step)}
                           <button type="button" onClick={() => setOtpModal({ parcel, type: step })} disabled={!stepPhoto} className={`${btn.primary} ${btn.md}`}>
-                            <KeyRound size={15} /> Enter {step} code
+                            <KeyRound size={15} /> Confirm with code
                           </button>
                         </div>
                       </div>
+                    )}
+
+                    {/* Sender: the handover code the traveller asked Kabutar to send */}
+                    {!asTraveler && inProgress && (
+                      <HandoverCodeCard parcel={parcel} type={parcel.status === 'accepted' ? 'pickup' : 'delivery'} />
                     )}
 
                     {/* Sender actions */}

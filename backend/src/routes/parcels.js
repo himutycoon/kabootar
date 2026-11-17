@@ -301,6 +301,9 @@ router.patch('/:id/mark-delivered', protect, async (req, res) => {
       return res.status(403).json({ message: 'Only the sender can mark as delivered' });
     if (['completed', 'cancelled'].includes(parcel.status))
       return res.status(400).json({ message: `Parcel is already ${parcel.status}` });
+    // Only a parcel that a traveller has actually taken on can be marked delivered
+    if (!parcel.travelerId || !['accepted', 'picked', 'in_transit', 'delivered'].includes(parcel.status))
+      return res.status(400).json({ message: 'No traveller is carrying this parcel yet' });
 
     parcel.status      = 'completed';
     parcel.deliveredAt = parcel.deliveredAt || new Date();

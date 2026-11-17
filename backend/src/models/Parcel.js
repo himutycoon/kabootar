@@ -29,6 +29,9 @@ const parcelSchema = new mongoose.Schema(
     pickupOtpExpiry: { type: Date, default: null },
     deliveryOtp: { type: String, default: null },
     deliveryOtpExpiry: { type: Date, default: null },
+    // Wrong-guess counters — a code is cancelled after too many failed attempts
+    pickupOtpAttempts:   { type: Number, default: 0 },
+    deliveryOtpAttempts: { type: Number, default: 0 },
     pickupStation: { type: String, default: '' },
     dropStation: { type: String, default: '' },
     pickupPhotoUrl: { type: String, default: '' },
