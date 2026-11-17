@@ -6,7 +6,7 @@ import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import { getTripDates } from '../lib/tripDates';
 import { useServiceArea } from '../context/ServiceAreaContext';
-import { Sheet, StepProgress, Field, Segmented } from './mobile/ui';
+import { Sheet, StepProgress, Field, Segmented, PickerInput } from './mobile/ui';
 import { m } from './mobile/styles';
 
 const STEPS = ['Route', 'Travel details', 'Capacity & price', 'Review'];
@@ -203,7 +203,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
   const modeLabel = TRANSPORT_MODES.find(([k]) => k === form.transportMode)?.[1];
 
   return (
-    <Sheet full title={isEdit ? 'Edit trip' : 'Post a trip'} onClose={onClose}
+    <Sheet full onBack={step > 0 ? goBack : undefined} title={isEdit ? 'Edit trip' : 'Post a trip'} onClose={onClose}
       headerLeft={step > 0 ? (
         <button type="button" onClick={goBack} aria-label="Previous step"
           className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 active:bg-slate-100 hover:bg-slate-100">
@@ -256,7 +256,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 
             {dateMode === 'single' && (
               <Field label="Travel date" error={errors.dates}>
-                <input type="date" className={m.input} min={today} value={singleDate}
+                <PickerInput type="date" placeholder="Choose a date" className={m.input} min={today} value={singleDate}
                   onChange={e => { setSingleDate(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
               </Field>
             )}
@@ -264,7 +264,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
             {dateMode === 'specific' && (
               <Field label="Travel dates" error={errors.dates} hint={`${specificDates.length} of up to ${MAX_DATES} dates added`}>
                 <div className="flex gap-2">
-                  <input type="date" className={`${m.input} flex-1`} min={today} value={dateToAdd} onChange={e => setDateToAdd(e.target.value)} />
+                  <PickerInput type="date" placeholder="Choose a date" wrapClassName="flex-1" className={m.input} min={today} value={dateToAdd} onChange={e => setDateToAdd(e.target.value)} />
                   <button type="button" onClick={addSpecificDate} className={`${m.btnSecondary} px-4`}><Plus size={16} /> Add</button>
                 </div>
                 {specificDates.length > 0 && (
@@ -284,7 +284,7 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
             {dateMode === 'recurring' && (
               <div className="space-y-4 border border-slate-200 rounded-2xl p-4">
                 <Field label="Starting from">
-                  <input type="date" className={m.input} min={today} value={recurStart}
+                  <PickerInput type="date" placeholder="Choose a date" className={m.input} min={today} value={recurStart}
                     onChange={e => { setRecurStart(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
                 </Field>
                 <Field label="Repeat for">
@@ -326,10 +326,10 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 
             <div className="grid grid-cols-2 gap-3">
               <Field label="Departs (optional)">
-                <input type="time" className={m.input} value={form.departureTime} onChange={e => set('departureTime', e.target.value)} />
+                <PickerInput type="time" placeholder="Add time" className={m.input} value={form.departureTime} onChange={e => set('departureTime', e.target.value)} />
               </Field>
               <Field label="Arrives (optional)">
-                <input type="time" className={m.input} value={form.arrivalTime} onChange={e => set('arrivalTime', e.target.value)} />
+                <PickerInput type="time" placeholder="Add time" className={m.input} value={form.arrivalTime} onChange={e => set('arrivalTime', e.target.value)} />
               </Field>
             </div>
 

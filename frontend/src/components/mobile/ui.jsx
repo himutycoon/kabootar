@@ -73,16 +73,17 @@ export function Field({ label, hint, error, children, htmlFor }) {
 
 // Bottom sheet on phones, centred dialog on desktop browsers.
 // `full` makes the phone version take the whole screen (for multi-step forms).
-export function Sheet({ title, onClose, children, footer, full = false, headerLeft }) {
+// `onBack` (optional) handles the Android back button instead of closing — e.g. previous step in a wizard
+export function Sheet({ title, onClose, onBack, children, footer, full = false, headerLeft }) {
   const desktop = useDesktopWeb();
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     const onKey = (e) => { if (e.key === 'Escape') onClose?.(); };
     window.addEventListener('keydown', onKey);
-    const unregisterBack = pushBackHandler(() => onClose?.());
+    const unregisterBack = pushBackHandler(() => (onBack || onClose)?.());
     return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); unregisterBack(); };
-  }, [onClose]);
+  }, [onClose, onBack]);
 
   const frame = desktop
     ? 'w-full max-w-lg max-h-[88vh] rounded-2xl'
@@ -174,3 +175,16 @@ export const CardSkeleton = ({ lines = 2 }) => (
     {lines > 1 && <div className="h-3 w-3/4 bg-slate-100 rounded animate-pulse" />}
   </div>
 );
+
+// Date/time input with a visible placeholder — Android WebView renders empty
+// date and time inputs as blank boxes with no hint.
+export function PickerInput({ type = 'date', value, placeholder, className = '', wrapClassName = '', ...rest }) {
+  return (
+    <span className={`relative block ${wrapClassName}`}>
+      <input type={type} value={value} className={`${className} ${value ? '' : 'text-transparent'}`} {...rest} />
+      {!value && (
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[15px] text-slate-400 pointer-events-none">{placeholder}</span>
+      )}
+    </span>
+  );
+}

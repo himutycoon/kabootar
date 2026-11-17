@@ -124,7 +124,7 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
   }
 
   return (
-    <Sheet full title={isEdit ? 'Edit parcel request' : 'Send a parcel'} onClose={onClose}
+    <Sheet full onBack={step > 0 ? goBack : undefined} title={isEdit ? 'Edit parcel request' : 'Send a parcel'} onClose={onClose}
       headerLeft={step > 0 ? (
         <button type="button" onClick={goBack} aria-label="Previous step"
           className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 active:bg-slate-100 hover:bg-slate-100">

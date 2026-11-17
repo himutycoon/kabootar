@@ -87,8 +87,9 @@ export default function CityInput({ value, onChange, placeholder, className = ""
         )}
       </div>
 
-      {invalid && (
-        <p className="text-[11px] text-red-500 mt-0.5">Select a city from the list</p>
+      {/* Only when nothing matches what's typed (the list itself guides otherwise) */}
+      {invalid && !open && (
+        <p className="text-[13px] text-red-600 mt-1">No matching city. Choose one from the list.</p>
       )}
 
       {open && suggestions.length > 0 && (
