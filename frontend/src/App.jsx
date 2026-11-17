@@ -24,6 +24,7 @@ import DeleteAccountPage from './pages/DeleteAccountPage';
 import LandingPage from './pages/LandingPage';
 import TermsPage from './pages/TermsPage';
 import PrivacyPage from './pages/PrivacyPage';
+import { handleBackOverlay } from './lib/backStack';
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -58,7 +59,9 @@ function AndroidBackHandler() {
       const ROOT_PATHS = ['/', '/app', '/login'];
       const isRoot = () => ROOT_PATHS.includes(location.pathname);
 
-      const handler = App.addListener('backButton', ({ canGoBack }) => {
+      const handler = App.addListener('backButton', () => {
+        // An open sheet/dialog takes the back press first
+        if (handleBackOverlay()) return;
         if (isRoot()) {
           // At root — exit the app
           App.exitApp();
@@ -121,6 +124,16 @@ export default function App() {
     }
     return false;
   });
+
+  // After the orange splash, switch the Android status bar to match the white
+  // app top bar (dark icons). Older Android versions also honour the colour.
+  useEffect(() => {
+    if (!isNative || !splashDone) return;
+    import('@capacitor/status-bar').then(({ StatusBar, Style }) => {
+      StatusBar.setStyle({ style: Style.Light }).catch(() => {});
+      StatusBar.setBackgroundColor({ color: '#FFFFFF' }).catch(() => {});
+    }).catch(() => {});
+  }, [isNative, splashDone]);
 
   // Show onboarding once on very first launch (APK only)
   const [onboardingDone, setOnboardingDone] = useState(

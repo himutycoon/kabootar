@@ -1,21 +1,18 @@
-import { useState, Fragment } from 'react';
+import { createElement, useState } from 'react';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { X, Send, Clock, Edit2, Plus, CalendarDays, Repeat, Route, Package, Compass, Check, ChevronLeft } from 'lucide-react';
+import { X, Plus, ArrowLeft, TrainFront, Plane, Bus, Car, CheckCircle2, Clock } from 'lucide-react';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import { getTripDates } from '../lib/tripDates';
 import { useServiceArea } from '../context/ServiceAreaContext';
+import { Sheet, StepProgress, Field, Segmented } from './mobile/ui';
+import { m } from './mobile/styles';
 
-const STEPS = [
-  { key: 'route',     label: 'Route',     icon: Route },
-  { key: 'when',      label: 'When',      icon: CalendarDays },
-  { key: 'transport', label: 'Transport', icon: Compass },
-  { key: 'price',     label: 'Price',     icon: Package },
+const STEPS = ['Route', 'Travel details', 'Capacity & price', 'Review'];
+const TRANSPORT_MODES = [
+  ['train', 'Train', TrainFront], ['flight', 'Flight', Plane], ['bus', 'Bus', Bus], ['car', 'Car', Car],
 ];
-
-const TRANSPORT_MODES = ['train', 'flight', 'bus', 'car'];
-const MODE_EMOJI = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
 const today = new Date().toISOString().split('T')[0];
 const toISO = (d) => d.toISOString().split('T')[0];
 const fmtShort = (iso) => new Date(iso + 'T00:00:00').toLocaleDateString('en-IN', { day: '2-digit', month: 'short' });
@@ -49,6 +46,12 @@ function generateRecurringDates(start, end, weekdaySet) {
   return out;
 }
 
+const fmtTime = (t) => {
+  if (!t) return '';
+  const [h, mi] = t.split(':').map(Number);
+  return `${h % 12 || 12}:${String(mi).padStart(2, '0')} ${h >= 12 ? 'PM' : 'AM'}`;
+};
+
 // Pass initialData + tripId to enter edit mode
 export default function PostTripModal({ onClose, onSuccess, initialData = null, tripId = null }) {
   const isEdit = !!tripId;
@@ -63,12 +66,6 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
   const [recurStart, setRecurStart] = useState(initialDates[0] || '');
   const [recurDuration, setRecurDuration] = useState(30);
   const [recurDays, setRecurDays] = useState(new Set());
-
-  const switchDateMode = (k) => {
-    setDateMode(k);
-    if (k === 'recurring' && !recurStart) setRecurStart(today);
-    setErrors(e => ({ ...e, dates: undefined }));
-  };
 
   const [form, setForm] = useState({
     fromCity:        initialData?.fromCity        || '',
@@ -87,8 +84,15 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
   const [step, setStep]       = useState(0);
+  const [posted, setPosted]   = useState(null); // trip returned by the API after a new post
 
   const set = (k, v) => { setForm(f => ({ ...f, [k]: v })); setErrors(e => ({ ...e, [k]: undefined })); };
+
+  const switchDateMode = (k) => {
+    setDateMode(k);
+    if (k === 'recurring' && !recurStart) setRecurStart(today);
+    setErrors(e => ({ ...e, dates: undefined }));
+  };
 
   const recurEnd = recurStart ? addDaysISO(recurStart, recurDuration) : '';
   const recurringDates = dateMode === 'recurring' ? generateRecurringDates(recurStart, recurEnd, recurDays) : [];
@@ -120,28 +124,28 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
 
   const validateRoute = () => {
     const e = {};
-    if (!form.fromCity.trim())  e.fromCity = 'Required';
-    if (!form.toCity.trim())    e.toCity   = 'Required';
+    if (!form.fromCity.trim())  e.fromCity = 'Choose where you are starting from';
+    if (!form.toCity.trim())    e.toCity   = 'Choose your destination';
     setErrors(er => ({ ...er, fromCity: e.fromCity, toCity: e.toCity }));
     return !e.fromCity && !e.toCity;
   };
 
   const validateWhen = () => {
     const dates = resolveDates();
-    const err = dates.length ? undefined : (dateMode === 'recurring' ? 'Pick at least one day of the week' : 'Required');
+    const err = dates.length ? undefined : (dateMode === 'recurring' ? 'Pick at least one day of the week' : 'Choose your travel date');
     setErrors(er => ({ ...er, dates: err }));
     return !err;
   };
 
   const validatePrice = () => {
     const e = {};
-    if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Must be > 0';
-    if (form.pricePerKg === '' || +form.pricePerKg < 0)      e.pricePerKg      = 'Required';
+    if (!form.availableWeight || +form.availableWeight <= 0) e.availableWeight = 'Enter the space you can spare (more than 0 kg)';
+    if (form.pricePerKg === '' || +form.pricePerKg < 0)      e.pricePerKg      = 'Enter your price per kg (0 if free)';
     setErrors(er => ({ ...er, availableWeight: e.availableWeight, pricePerKg: e.pricePerKg }));
     return !e.availableWeight && !e.pricePerKg;
   };
 
-  const STEP_VALIDATORS = [validateRoute, validateWhen, () => true, validatePrice];
+  const STEP_VALIDATORS = [validateRoute, validateWhen, validatePrice, () => true];
   const goNext = () => { if (STEP_VALIDATORS[step]()) setStep(s => Math.min(s + 1, STEPS.length - 1)); };
   const goBack = () => setStep(s => Math.max(s - 1, 0));
 
@@ -168,329 +172,259 @@ export default function PostTripModal({ onClose, onSuccess, initialData = null, 
       const { data } = isEdit
         ? await api.patch(`/trips/${tripId}`, payload)
         : await api.post('/trips', payload);
-      toast.success(isEdit ? 'Trip updated!' : 'Trip posted!');
-      onSuccess(data.trip);
+      if (isEdit) { toast.success('Trip updated'); onSuccess(data.trip); }
+      else setPosted(data.trip);
     } catch (err) {
       toast.error(err.response?.data?.message || (isEdit ? 'Failed to update' : 'Failed to post'));
     } finally { setLoading(false); }
   };
 
+  // Closing after a successful post still hands the new trip to the parent
+  const close = () => (posted ? onSuccess(posted) : onClose());
+
+  // ── Success screen ──
+  if (posted) {
+    return (
+      <Sheet title="Trip posted" onClose={close}
+        footer={<button type="button" onClick={close} className={`${m.btnPrimary} w-full`}>Done</button>}>
+        <div className="text-center py-8">
+          <span className="w-16 h-16 rounded-full bg-emerald-50 text-emerald-600 inline-flex items-center justify-center"><CheckCircle2 size={32} /></span>
+          <h3 className="mt-4 text-xl font-semibold text-slate-900">Your trip is live</h3>
+          <p className="mt-1.5 text-[15px] text-slate-500">{posted.fromCity} → {posted.toCity}</p>
+          <p className="mt-4 text-[13px] text-slate-500 max-w-xs mx-auto leading-relaxed">
+            Senders on this route can now find you and message you. You’ll get an alert when someone reaches out.
+          </p>
+        </div>
+      </Sheet>
+    );
+  }
+
+  const dates = resolveDates();
+  const modeLabel = TRANSPORT_MODES.find(([k]) => k === form.transportMode)?.[1];
+
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100">
-          <div className="flex items-center gap-2">
-            {isEdit
-              ? <Edit2 size={18} className="text-violet-500" />
-              : <Send size={18} className="text-orange-500" />}
-            <h2 className="font-bold text-stone-900">{isEdit ? 'Edit Trip' : 'Post a Trip'}</h2>
-          </div>
-          <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
+    <Sheet full title={isEdit ? 'Edit trip' : 'Post a trip'} onClose={onClose}
+      headerLeft={step > 0 ? (
+        <button type="button" onClick={goBack} aria-label="Previous step"
+          className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 active:bg-slate-100 hover:bg-slate-100">
+          <ArrowLeft size={20} />
+        </button>
+      ) : null}
+      footer={
+        <div className="flex gap-3">
+          {step > 0 && <button type="button" onClick={goBack} className={`${m.btnSecondary} flex-1`}>Back</button>}
+          {step < STEPS.length - 1
+            ? <button type="button" onClick={goNext} className={`${m.btnPrimary} flex-[2]`}>Continue</button>
+            : <button type="button" onClick={submit} disabled={loading} className={`${m.btnPrimary} flex-[2]`}>
+                {loading ? (isEdit ? 'Saving…' : 'Publishing…') : (isEdit ? 'Save changes' : 'Publish trip')}
+              </button>}
         </div>
+      }>
+      <StepProgress steps={STEPS} current={step} />
 
-        {/* ── Step progress bar ── */}
-        <div className="px-5 pt-4 pb-1 flex items-center">
-          {STEPS.map((s, i) => (
-            <Fragment key={s.key}>
-              <div className="flex flex-col items-center gap-1">
-                <div className={`w-7 h-7 rounded-full flex items-center justify-center border-2 transition-all ${
-                  i < step  ? 'bg-orange-500 border-orange-500 text-white'
-                  : i === step ? 'bg-white border-orange-500 text-orange-600'
-                  : 'bg-white border-stone-200 text-stone-300'
-                }`}>
-                  {i < step ? <Check size={13} /> : <s.icon size={13} />}
-                </div>
-                <span className={`text-[9px] font-semibold ${i <= step ? 'text-stone-600' : 'text-stone-300'}`}>{s.label}</span>
-              </div>
-              {i < STEPS.length - 1 && (
-                <div className={`flex-1 h-0.5 mx-1 mb-4 rounded transition-all ${i < step ? 'bg-orange-500' : 'bg-stone-200'}`} />
-              )}
-            </Fragment>
-          ))}
-        </div>
-
-        <div className="px-5 py-4 space-y-4">
-          {step === 0 && (
-          <div className="space-y-4">
+      <div className="mt-6 space-y-5">
+        {step === 0 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Where are you travelling?</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Senders search by these cities.</p>
+            </div>
             {isRestricted && (
-              <p className="text-[11px] text-stone-500 bg-stone-50 border border-stone-100 rounded-xl px-3 py-2">
-                Currently serving: <span className="font-semibold text-stone-700">{cityNames.join(', ')}</span>
+              <p className="text-[13px] text-slate-600 bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5">
+                Kabutar currently serves: <span className="font-semibold text-slate-800">{cityNames.join(', ')}</span>
               </p>
             )}
-            <Field label="Pickup City & Station" error={errors.fromCity}>
-              <StationSelect
-                cityValue={form.fromCity}   stationValue={form.fromStation}
-                onCityChange={v => set('fromCity', v)}
-                onStationChange={v => set('fromStation', v)}
-                cityPlaceholder="Delhi"    stationPlaceholder="Which station?"
-                cityList={restrictedCities}
-              />
+            <Field label="Starting city and station" error={errors.fromCity}>
+              <StationSelect cityValue={form.fromCity} stationValue={form.fromStation}
+                onCityChange={v => set('fromCity', v)} onStationChange={v => set('fromStation', v)}
+                cityPlaceholder="e.g. Delhi" stationPlaceholder="Station or area (optional)" cityList={restrictedCities} />
             </Field>
-
-            <Field label="Destination City" error={errors.toCity}>
-              <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="Mumbai" cityList={restrictedCities} />
+            <Field label="Destination city" error={errors.toCity}>
+              <CityInput value={form.toCity} onChange={v => set('toCity', v)} placeholder="e.g. Patna" cityList={restrictedCities} />
             </Field>
-          </div>
-          )}
+          </>
+        )}
 
-          {step === 1 && (
-          <div className="space-y-3">
-            <SectionHeader icon={CalendarDays} label="When are you travelling?" />
-
-            <div className="flex gap-1.5 flex-wrap">
-              {[
-                { k: 'single',    label: 'One date',        icon: null },
-                { k: 'specific',  label: 'Pick a few dates', icon: CalendarDays },
-                { k: 'recurring', label: 'Regular traveller', icon: Repeat },
-              ].map(({ k, label, icon: TabIcon }) => (
-                <button key={k} type="button" onClick={() => switchDateMode(k)}
-                  className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold border transition-all ${
-                    dateMode === k
-                      ? 'bg-orange-500 text-white border-orange-500'
-                      : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
-                  }`}>
-                  {TabIcon && <TabIcon size={11} />} {label}
-                </button>
-              ))}
+        {step === 1 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">When and how?</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Travel regularly? Add several dates in one post.</p>
             </div>
+            <Segmented value={dateMode} onChange={switchDateMode}
+              items={[['single', 'One date'], ['specific', 'A few dates'], ['recurring', 'Regular']]} />
 
             {dateMode === 'single' && (
-              <Field error={errors.dates}>
-                <input type="date" className="input-field" min={today} value={singleDate}
+              <Field label="Travel date" error={errors.dates}>
+                <input type="date" className={m.input} min={today} value={singleDate}
                   onChange={e => { setSingleDate(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
               </Field>
             )}
 
             {dateMode === 'specific' && (
-              <Field error={errors.dates} hint="Add each date you plan to travel">
-                <div className="space-y-2">
-                  <div className="flex gap-2">
-                    <input type="date" className="input-field flex-1" min={today} value={dateToAdd}
-                      onChange={e => setDateToAdd(e.target.value)} />
-                    <button type="button" onClick={addSpecificDate}
-                      className="btn-secondary px-3 flex items-center gap-1 shrink-0">
-                      <Plus size={14} /> Add
-                    </button>
-                  </div>
-                  {specificDates.length > 0 && (
-                    <div className="flex flex-wrap gap-1.5">
-                      {specificDates.map(d => (
-                        <span key={d} className="flex items-center gap-1 text-[11px] font-semibold bg-orange-50 text-orange-700 border border-orange-100 pl-2 pr-1 py-1 rounded-lg">
-                          {fmtShort(d)}
-                          <button type="button" onClick={() => removeSpecificDate(d)}
-                            className="w-4 h-4 rounded-full hover:bg-orange-200 flex items-center justify-center">
-                            <X size={10} />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                  <p className="text-[10px] text-stone-400">
-                    {specificDates.length} of up to {MAX_DATES} dates selected
-                  </p>
+              <Field label="Travel dates" error={errors.dates} hint={`${specificDates.length} of up to ${MAX_DATES} dates added`}>
+                <div className="flex gap-2">
+                  <input type="date" className={`${m.input} flex-1`} min={today} value={dateToAdd} onChange={e => setDateToAdd(e.target.value)} />
+                  <button type="button" onClick={addSpecificDate} className={`${m.btnSecondary} px-4`}><Plus size={16} /> Add</button>
                 </div>
+                {specificDates.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-3">
+                    {specificDates.map(d => (
+                      <span key={d} className="inline-flex items-center gap-1 h-8 pl-3 pr-1 rounded-full bg-kb-50 text-kb-700 text-[13px] font-semibold">
+                        {fmtShort(d)}
+                        <button type="button" onClick={() => removeSpecificDate(d)} aria-label={`Remove ${fmtShort(d)}`}
+                          className="w-6 h-6 rounded-full flex items-center justify-center active:bg-kb-100"><X size={13} /></button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </Field>
             )}
 
             {dateMode === 'recurring' && (
-              <Field error={errors.dates} hint="For commuters & regular travellers — post once, cover weeks">
-                <div className="space-y-3 bg-stone-50 border border-stone-100 rounded-2xl p-3">
-                  <div>
-                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">Starting from</p>
-                    <input type="date" className="input-field" min={today} value={recurStart}
-                      onChange={e => { setRecurStart(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+              <div className="space-y-4 border border-slate-200 rounded-2xl p-4">
+                <Field label="Starting from">
+                  <input type="date" className={m.input} min={today} value={recurStart}
+                    onChange={e => { setRecurStart(e.target.value); setErrors(er => ({ ...er, dates: undefined })); }} />
+                </Field>
+                <Field label="Repeat for">
+                  <div className="flex gap-2 flex-wrap">
+                    {DURATIONS.map(({ days, label }) => (
+                      <button key={days} type="button" onClick={() => setRecurDuration(days)} className={m.chip(recurDuration === days)}>{label}</button>
+                    ))}
                   </div>
-
-                  <div>
-                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">Repeat for the next</p>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {DURATIONS.map(({ days, label }) => (
-                        <button key={days} type="button" onClick={() => setRecurDuration(days)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                            recurDuration === days
-                              ? 'bg-orange-500 text-white border-orange-500'
-                              : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
-                          }`}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
+                </Field>
+                <Field label="On these days" error={errors.dates}>
+                  <div className="grid grid-cols-7 gap-1.5">
+                    {WEEKDAYS.map(({ i, label }) => (
+                      <button key={i} type="button" onClick={() => toggleRecurDay(i)} aria-pressed={recurDays.has(i)}
+                        className={`h-10 rounded-lg border text-[12px] font-semibold ${recurDays.has(i) ? 'bg-slate-900 border-slate-900 text-white' : 'bg-white border-slate-200 text-slate-600'}`}>
+                        {label}
+                      </button>
+                    ))}
                   </div>
-
-                  <div>
-                    <p className="text-[10px] font-semibold text-stone-500 mb-1.5">On these days</p>
-                    <div className="flex gap-1 flex-wrap">
-                      {WEEKDAYS.map(({ i, label }) => (
-                        <button key={i} type="button" onClick={() => toggleRecurDay(i)}
-                          className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold border transition-all ${
-                            recurDays.has(i)
-                              ? 'bg-orange-500 text-white border-orange-500'
-                              : 'bg-white text-stone-500 border-stone-200 hover:border-orange-300'
-                          }`}>
-                          {label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {recurringDates.length > 0 && (
-                    <div className="bg-white border border-orange-100 rounded-xl p-2.5">
-                      <p className="text-[10px] font-bold text-orange-700 mb-1.5">
-                        {recurringDates.length} date{recurringDates.length === 1 ? '' : 's'} will be posted
-                        {recurringDates.length >= MAX_DATES && ' (capped)'}
-                      </p>
-                      <div className="flex flex-wrap gap-1 max-h-20 overflow-y-auto">
-                        {recurringDates.map(d => (
-                          <span key={d} className="text-[10px] font-semibold bg-orange-50 border border-orange-100 text-orange-700 px-1.5 py-0.5 rounded-md">
-                            {fmtShort(d)}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </Field>
+                </Field>
+                {recurringDates.length > 0 && (
+                  <p className="text-[13px] text-slate-600">
+                    <span className="font-semibold text-slate-900">{recurringDates.length} date{recurringDates.length === 1 ? '' : 's'}</span> will be posted
+                    {recurringDates.length >= MAX_DATES && ' (maximum)'}, from {fmtShort(recurringDates[0])} to {fmtShort(recurringDates[recurringDates.length - 1])}.
+                  </p>
+                )}
+              </div>
             )}
-          </div>
-          )}
 
-          {step === 2 && (
-          <div className="space-y-4">
-            <SectionHeader icon={Compass} label="Transport details" />
-
-            <div className="grid grid-cols-2 gap-3">
-              <Field label="Departure time" hint="When you leave">
-                <div className="relative">
-                  <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                  <input type="time" className="input-field pl-8" value={form.departureTime}
-                    onChange={e => set('departureTime', e.target.value)} />
-                </div>
-              </Field>
-              <Field label="Expected arrival" hint="At destination">
-                <div className="relative">
-                  <Clock size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400 pointer-events-none" />
-                  <input type="time" className="input-field pl-8" value={form.arrivalTime}
-                    onChange={e => set('arrivalTime', e.target.value)} />
-                </div>
-              </Field>
-            </div>
-
-            <Field label="Transport Mode">
-              <div className="flex gap-2 flex-wrap">
-                {TRANSPORT_MODES.map(m => (
-                  <button key={m} onClick={() => set('transportMode', m)} type="button"
-                    className={`px-3.5 py-1.5 rounded-xl text-sm font-medium border transition-all capitalize flex items-center gap-1.5 ${
-                      form.transportMode === m
-                        ? 'bg-orange-500 text-white border-orange-500'
-                        : 'bg-white text-stone-600 border-stone-200 hover:border-orange-300'
-                    }`}>
-                    <span>{MODE_EMOJI[m]}</span> {m}
+            <Field label="How are you travelling?">
+              <div className="grid grid-cols-4 gap-2">
+                {TRANSPORT_MODES.map(([k, label, icon]) => (
+                  <button key={k} type="button" onClick={() => set('transportMode', k)} aria-pressed={form.transportMode === k}
+                    className={`h-16 rounded-xl border flex flex-col items-center justify-center gap-1 text-[12px] font-semibold transition-colors ${form.transportMode === k ? 'border-kb-500 bg-kb-50 text-kb-700' : 'border-slate-200 bg-white text-slate-600'}`}>
+                    {createElement(icon, { size: 20 })} {label}
                   </button>
                 ))}
               </div>
             </Field>
 
-            {/* PNR / Flight number — optional but builds trust */}
-            {(form.transportMode === 'train') && (
-              <div className="space-y-2">
-                <Field label="🎫 PNR Number (optional — builds trust)"
-                  hint="Senders can verify your ticket on the official NTES site">
-                  <input className="input-field tracking-widest font-mono" placeholder="e.g. 4521637890"
-                    maxLength={10} inputMode="numeric"
-                    value={form.pnrNumber}
-                    onChange={e => set('pnrNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} />
-                </Field>
-                <Field label="🚂 Train Number (optional)"
-                  hint="e.g. 12301 for Howrah Rajdhani">
-                  <input className="input-field font-mono" placeholder="e.g. 12301"
-                    maxLength={6} inputMode="numeric"
-                    value={form.trainNumber}
-                    onChange={e => set('trainNumber', e.target.value.replace(/\D/g, '').slice(0, 6))} />
-                </Field>
-                {form.pnrNumber.length === 10 && (
-                  <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-xl px-3 py-2">
-                    <span className="text-emerald-500 text-sm">✓</span>
-                    <p className="text-[11px] text-emerald-700 font-semibold">
-                      Senders will see a "Verify PNR" button — builds trust instantly!
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {form.transportMode === 'flight' && (
-              <Field label="✈️ Flight Number (optional — builds trust)"
-                hint="e.g. AI302 or 6E456 · senders can track on Flightradar">
-                <input className="input-field font-mono uppercase" placeholder="e.g. AI302"
-                  maxLength={7}
-                  value={form.flightNumber}
-                  onChange={e => set('flightNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0, 7))} />
-              </Field>
-            )}
-          </div>
-          )}
-
-          {step === 3 && (
-          <div className="space-y-4">
-            <SectionHeader icon={Package} label="Capacity & Price" />
-
             <div className="grid grid-cols-2 gap-3">
-              <Field label="Weight (kg)" error={errors.availableWeight}>
-                <input className="input-field" placeholder="10" type="number" min="0.1" step="0.1"
-                  value={form.availableWeight} onChange={e => set('availableWeight', e.target.value)} />
+              <Field label="Departs (optional)">
+                <input type="time" className={m.input} value={form.departureTime} onChange={e => set('departureTime', e.target.value)} />
               </Field>
-              <Field label="Price/kg (₹)" error={errors.pricePerKg}>
-                <input className="input-field" placeholder="50" type="number" min="0"
-                  value={form.pricePerKg} onChange={e => set('pricePerKg', e.target.value)} />
+              <Field label="Arrives (optional)">
+                <input type="time" className={m.input} value={form.arrivalTime} onChange={e => set('arrivalTime', e.target.value)} />
               </Field>
             </div>
 
-            <Field label="Notes (optional)">
-              <textarea className="input-field resize-none" rows={2}
-                placeholder="Train number, PNR, any extra info…"
+            {form.transportMode === 'train' && (
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="PNR (optional)" hint="Helps senders trust your trip">
+                  <input className={`${m.input} font-mono tracking-wider`} placeholder="10 digits" maxLength={10} inputMode="numeric"
+                    value={form.pnrNumber} onChange={e => set('pnrNumber', e.target.value.replace(/\D/g, '').slice(0, 10))} />
+                </Field>
+                <Field label="Train no. (optional)">
+                  <input className={`${m.input} font-mono`} placeholder="e.g. 12301" maxLength={6} inputMode="numeric"
+                    value={form.trainNumber} onChange={e => set('trainNumber', e.target.value.replace(/\D/g, '').slice(0, 6))} />
+                </Field>
+              </div>
+            )}
+            {form.transportMode === 'flight' && (
+              <Field label="Flight number (optional)" hint="Helps senders trust your trip">
+                <input className={`${m.input} font-mono uppercase`} placeholder="e.g. AI302" maxLength={7}
+                  value={form.flightNumber} onChange={e => set('flightNumber', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 7))} />
+              </Field>
+            )}
+          </>
+        )}
+
+        {step === 2 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Space and price</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Only offer space you’re comfortable carrying.</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Space available" error={errors.availableWeight}>
+                <div className="relative">
+                  <input className={`${m.input} pr-12`} placeholder="10" type="number" inputMode="decimal" min="0.1" step="0.1"
+                    value={form.availableWeight} onChange={e => set('availableWeight', e.target.value)} />
+                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[15px] text-slate-400">kg</span>
+                </div>
+              </Field>
+              <Field label="Price per kg" error={errors.pricePerKg}>
+                <div className="relative">
+                  <span className="absolute left-4 top-1/2 -translate-y-1/2 text-[15px] text-slate-400">₹</span>
+                  <input className={`${m.input} pl-8`} placeholder="50" type="number" inputMode="numeric" min="0"
+                    value={form.pricePerKg} onChange={e => set('pricePerKg', e.target.value)} />
+                </div>
+              </Field>
+            </div>
+            <Field label="Notes for senders (optional)" hint="e.g. what you can or can't carry, where you can meet">
+              <textarea className={m.textarea} rows={3} placeholder="Anything senders should know"
                 value={form.notes} onChange={e => set('notes', e.target.value)} />
             </Field>
-          </div>
-          )}
-        </div>
+          </>
+        )}
 
-        <div className="px-5 pb-5 flex gap-3">
-          <button onClick={step === 0 ? onClose : goBack} className="btn-secondary flex-1 flex items-center justify-center gap-1">
-            {step > 0 && <ChevronLeft size={15} />} {step === 0 ? 'Cancel' : 'Back'}
-          </button>
-          {step < STEPS.length - 1 ? (
-            <button onClick={goNext} type="button" className="flex-1 btn-primary">Next</button>
-          ) : (
-            <button onClick={submit} disabled={loading}
-              className={`flex-1 btn-primary ${isEdit ? 'bg-violet-600 hover:bg-violet-700' : ''}`}>
-              {loading ? (isEdit ? 'Saving…' : 'Posting…') : (isEdit ? 'Save Changes' : 'Post Trip')}
-            </button>
-          )}
-        </div>
+        {step === 3 && (
+          <>
+            <div>
+              <h3 className="text-lg font-semibold text-slate-900">Review your trip</h3>
+              <p className="text-[13px] text-slate-500 mt-0.5">Tap a section to change it.</p>
+            </div>
+            <div className="border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden">
+              <ReviewRow label="Route" onEdit={() => setStep(0)}
+                value={`${form.fromCity} → ${form.toCity}`} sub={form.fromStation || undefined} />
+              <ReviewRow label="Dates" onEdit={() => setStep(1)}
+                value={dates.length === 1 ? fmtShort(dates[0]) : `${dates.length} dates`}
+                sub={dates.length > 1 ? `${fmtShort(dates[0])} – ${fmtShort(dates[dates.length - 1])}` : undefined} />
+              <ReviewRow label="Travel" onEdit={() => setStep(1)}
+                value={modeLabel}
+                sub={[form.departureTime && `Departs ${fmtTime(form.departureTime)}`, form.arrivalTime && `Arrives ${fmtTime(form.arrivalTime)}`,
+                  form.pnrNumber && 'PNR added', form.trainNumber && `Train ${form.trainNumber}`, form.flightNumber && `Flight ${form.flightNumber}`]
+                  .filter(Boolean).join(' · ') || undefined} />
+              <ReviewRow label="Space & price" onEdit={() => setStep(2)}
+                value={`${form.availableWeight} kg at ₹${form.pricePerKg}/kg`} sub={form.notes || undefined} />
+            </div>
+            {!isEdit && (
+              <p className="text-[13px] text-slate-500 flex gap-2">
+                <Clock size={15} className="shrink-0 mt-0.5 text-slate-400" />
+                Your trip will be visible to senders searching this route until your last travel date.
+              </p>
+            )}
+          </>
+        )}
       </div>
-    </div>
+    </Sheet>
   );
 }
 
-function Field({ label, hint, error, children }) {
+function ReviewRow({ label, value, sub, onEdit }) {
   return (
-    <div>
-      {(label || hint) && (
-        <div className="flex items-baseline gap-1.5 mb-1.5">
-          {label && <label className="block text-xs font-semibold text-stone-600">{label}</label>}
-          {hint && <span className="text-[10px] text-stone-400">{hint}</span>}
-        </div>
-      )}
-      {children}
-      {error && <p className="text-xs text-red-500 mt-1">{error}</p>}
-    </div>
-  );
-}
-
-function SectionHeader({ icon: Icon, label }) {
-  return (
-    <p className="flex items-center gap-1.5 text-[10px] font-black text-stone-400 uppercase tracking-wide">
-      {Icon && <Icon size={11} />} {label}
-    </p>
+    <button type="button" onClick={onEdit} className="w-full flex items-start gap-3 px-4 py-3.5 text-left active:bg-slate-50 hover:bg-slate-50">
+      <span className="w-24 shrink-0 text-[13px] text-slate-500 pt-0.5">{label}</span>
+      <span className="flex-1 min-w-0">
+        <span className="block text-[15px] font-semibold text-slate-900">{value}</span>
+        {sub && <span className="block text-[13px] text-slate-500 mt-0.5 break-words">{sub}</span>}
+      </span>
+      <span className="text-[13px] font-semibold text-kb-600 pt-0.5">Edit</span>
+    </button>
   );
 }

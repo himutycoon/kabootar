@@ -7,6 +7,8 @@ import { useAuth } from '../context/AuthContext';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader, EmptyState } from '../components/desktop/ui';
 import { btn } from '../components/desktop/styles';
+import { ScreenHeader, CardSkeleton } from '../components/mobile/ui';
+import { m } from '../components/mobile/styles';
 
 const TYPE_META = {
   parcel:  { icon: Package,     color: 'bg-orange-100 text-orange-500' },
@@ -60,7 +62,7 @@ export default function NotificationsPage() {
       setNotifications(nRes.data.notifications || []);
       setUnread(nRes.data.unread || 0);
       setAnnouncements(aRes.data.announcements || []);
-    } catch {} finally { setLoading(false); }
+    } catch { /* show whatever loaded */ } finally { setLoading(false); }
   }, [user]);
 
   useEffect(() => { load(); }, [load]);
@@ -186,109 +188,74 @@ export default function NotificationsPage() {
     );
   }
 
-  return (
-    <div className="px-4 py-5 pb-8">
+  // ── Mobile layout (Android app + phone browsers) ──
+  const M_TYPE = {
+    parcel:  [Package,       'bg-kb-50 text-kb-600'],
+    trip:    [Send,          'bg-sky-50 text-sky-600'],
+    message: [MessageCircle, 'bg-emerald-50 text-emerald-600'],
+    kyc:     [Shield,        'bg-violet-50 text-violet-600'],
+    system:  [Bell,          'bg-slate-100 text-slate-600'],
+  };
+  const pinnedAnn = announcements.filter(a => a.pinned);
+  const otherAnn  = announcements.filter(a => !a.pinned);
+  const annRow = (a) => (
+    <div key={a._id} className="flex gap-3 px-4 py-3.5">
+      <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><Megaphone size={17} /></span>
+      <span className="min-w-0">
+        <span className="block text-[15px] font-semibold text-slate-900">{a.title}</span>
+        <span className="block text-[14px] text-slate-600 mt-0.5 leading-relaxed">{a.body}</span>
+        {a.createdAt && <span className="block text-xs text-slate-400 mt-1">{timeLabel(a.createdAt)}</span>}
+      </span>
+    </div>
+  );
 
-      {/* Header */}
-      <div className="flex items-center justify-between mb-5">
-        <div>
-          <h1 className="text-xl font-bold text-stone-900 flex items-center gap-2">
-            Notifications
-            {unread > 0 && (
-              <span className="bg-orange-500 text-white text-[10px] font-black px-1.5 py-0.5 rounded-full leading-none">
-                {unread > 9 ? '9+' : unread}
-              </span>
-            )}
-          </h1>
-          <p className="text-xs text-stone-400 mt-0.5">Alerts, updates &amp; activity</p>
-        </div>
-        <div className="flex items-center gap-2">
+  return (
+    <div className="px-4 pt-1 pb-4">
+      <ScreenHeader title="Alerts" sub={unread > 0 ? `${unread} unread` : undefined}
+        right={<>
           {unread > 0 && (
-            <button onClick={markAllRead}
-              className="flex items-center gap-1 text-xs font-semibold text-orange-500 bg-orange-50 border border-orange-100 px-3 py-1.5 rounded-xl active:scale-95 transition-all">
-              <CheckCheck size={13} /> Read all
-            </button>
+            <button type="button" onClick={markAllRead} className={`${m.btnSmall} text-kb-600 active:bg-kb-50`}><CheckCheck size={16} /> Read all</button>
           )}
           {notifications.some(n => n.read) && (
-            <button onClick={clearRead}
-              className="w-8 h-8 flex items-center justify-center bg-stone-100 rounded-xl active:scale-90 transition-all">
-              <Trash2 size={14} className="text-stone-400" />
-            </button>
+            <button type="button" onClick={clearRead} aria-label="Clear read notifications"
+              className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100"><Trash2 size={18} /></button>
           )}
-        </div>
-      </div>
+        </>} />
 
       {loading ? (
-        <div className="space-y-3">
-          {[0,1,2,3].map(i => (
-            <div key={i} className="flex gap-3 p-4 bg-white rounded-2xl border border-stone-100">
-              <div className="w-10 h-10 rounded-xl bg-stone-100 animate-pulse shrink-0" />
-              <div className="flex-1 space-y-2">
-                <div className="h-3 bg-stone-100 rounded animate-pulse w-3/4" />
-                <div className="h-2.5 bg-stone-100 rounded animate-pulse w-1/2" />
-              </div>
-            </div>
-          ))}
-        </div>
+        <div className="space-y-3"><CardSkeleton lines={1} /><CardSkeleton lines={1} /><CardSkeleton lines={1} /></div>
       ) : (
         <div className="space-y-5">
-
-          {/* Announcements (pinned at top) */}
-          {announcements.filter(a => a.pinned).length > 0 && (
+          {pinnedAnn.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Megaphone size={13} className="text-orange-500" />
-                <span className="text-xs font-bold text-stone-500 uppercase tracking-wide">Pinned</span>
-              </div>
-              <div className="space-y-2">
-                {announcements.filter(a => a.pinned).map(a => (
-                  <div key={a._id}
-                    className={`border rounded-2xl px-4 py-3 flex gap-3 items-start ${ANNOUNCE_COLOR[a.type] || 'bg-stone-50 border-stone-100'}`}>
-                    <span className="text-xl shrink-0 mt-0.5">{a.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-stone-900">{a.title}</p>
-                      <p className="text-xs text-stone-600 mt-0.5 leading-relaxed">{a.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="px-1 mb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Pinned</p>
+              <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>{pinnedAnn.map(annRow)}</div>
             </section>
           )}
 
-          {/* User notifications grouped by day */}
-          {user && Object.keys(groups).length > 0 && Object.entries(groups).map(([day, items]) => (
+          {!user ? (
+            <div className={m.card}>
+              <EmptyState icon={Bell} title="Log in to see your alerts" body="Trip requests, parcel updates and messages show up here."
+                actionLabel="Log in" onAction={() => navigate('/login', { state: { from: '/notifications' } })} />
+            </div>
+          ) : notifications.length === 0 ? (
+            <div className={m.card}><EmptyState icon={Bell} title="You're all caught up" body="Activity on your trips, parcels and account will appear here." /></div>
+          ) : Object.entries(groups).map(([day, items]) => (
             <section key={day}>
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-[10px] font-bold text-stone-400 uppercase tracking-widest">{day}</span>
-                <div className="flex-1 h-px bg-stone-100" />
-              </div>
-              <div className="space-y-1.5">
+              <p className="px-1 mb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">{day}</p>
+              <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>
                 {items.map(notif => {
-                  const meta = TYPE_META[notif.type] || TYPE_META.system;
-                  const Icon = meta.icon;
+                  const [Icon, cls] = M_TYPE[notif.type] || M_TYPE.system;
                   return (
-                    <button key={notif._id}
-                      onClick={() => handleNotifTap(notif)}
-                      className={`w-full text-left flex gap-3 p-3.5 rounded-2xl border transition-all active:scale-[0.99] ${
-                        notif.read
-                          ? 'bg-white border-stone-100'
-                          : 'bg-orange-50 border-orange-100'
-                      }`}>
-                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${meta.color}`}>
-                        <Icon size={16} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className={`text-sm leading-snug ${notif.read ? 'text-stone-700 font-medium' : 'text-stone-900 font-bold'}`}>
-                          {notif.title}
-                        </p>
-                        {notif.body && (
-                          <p className="text-xs text-stone-400 mt-0.5 leading-relaxed line-clamp-2">{notif.body}</p>
-                        )}
-                        <p className="text-[10px] text-stone-400 mt-1">{timeLabel(notif.createdAt)}</p>
-                      </div>
-                      {!notif.read && (
-                        <div className="w-2 h-2 rounded-full bg-orange-500 shrink-0 mt-1.5" />
-                      )}
+                    <button key={notif._id} type="button" onClick={() => handleNotifTap(notif)}
+                      className={`w-full flex gap-3 px-4 py-3.5 text-left transition-colors ${notif.read ? 'active:bg-slate-50' : 'bg-kb-50/50 active:bg-kb-50'}`}>
+                      <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${cls}`}><Icon size={17} /></span>
+                      <span className="flex-1 min-w-0">
+                        <span className={`block text-[15px] leading-snug ${notif.read ? 'font-medium text-slate-700' : 'font-semibold text-slate-900'}`}>{notif.title}</span>
+                        {notif.body && <span className="block text-[14px] text-slate-500 mt-0.5 leading-relaxed">{notif.body}</span>}
+                        <span className="block text-xs text-slate-400 mt-1">{timeLabel(notif.createdAt)}</span>
+                      </span>
+                      {!notif.read && <span className="w-2.5 h-2.5 rounded-full bg-kb-500 shrink-0 mt-1.5" aria-label="Unread" />}
                     </button>
                   );
                 })}
@@ -296,35 +263,11 @@ export default function NotificationsPage() {
             </section>
           ))}
 
-          {/* Non-pinned announcements */}
-          {announcements.filter(a => !a.pinned).length > 0 && (
+          {otherAnn.length > 0 && (
             <section>
-              <div className="flex items-center gap-2 mb-2.5">
-                <Megaphone size={13} className="text-stone-400" />
-                <span className="text-xs font-bold text-stone-400 uppercase tracking-wide">Updates</span>
-              </div>
-              <div className="space-y-2">
-                {announcements.filter(a => !a.pinned).map(a => (
-                  <div key={a._id}
-                    className={`border rounded-2xl px-4 py-3 flex gap-3 items-start ${ANNOUNCE_COLOR[a.type] || 'bg-stone-50 border-stone-100'}`}>
-                    <span className="text-xl shrink-0 mt-0.5">{a.icon}</span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-bold text-stone-900">{a.title}</p>
-                      <p className="text-xs text-stone-500 mt-0.5 leading-relaxed">{a.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <p className="px-1 mb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Updates from Kabutar</p>
+              <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>{otherAnn.map(annRow)}</div>
             </section>
-          )}
-
-          {/* Empty state */}
-          {notifications.length === 0 && announcements.length === 0 && (
-            <div className="text-center py-16">
-              <div className="text-5xl mb-4">🔔</div>
-              <p className="font-bold text-stone-700">All caught up!</p>
-              <p className="text-stone-400 text-sm mt-1">Notifications will appear here</p>
-            </div>
           )}
         </div>
       )}

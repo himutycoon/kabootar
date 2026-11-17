@@ -90,8 +90,6 @@ https://app.kabutar.in`
     );
   };
 
-  const statusLabel = STATUS_LABEL[parcel.status] || parcel.status;
-  const statusColor = STATUS_COLOR[parcel.status] || 'bg-stone-100 text-stone-500';
   const timeAgo     = formatDistanceToNow(new Date(parcel.createdAt), { addSuffix: true });
 
   if (variant === 'row') {
@@ -173,108 +171,71 @@ https://app.kabutar.in`
     );
   }
 
-  return (
-    <div className="card p-3.5 animate-fade-in">
-
-      {/* ── Row 1: Role label + status + WA ── */}
-      <div className="flex items-center gap-1.5 mb-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-wide bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full shrink-0">
-          📦 Sender
-        </span>
-        <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0 ${statusColor}`}>
-          {statusLabel}
-        </span>
-        <span className="text-[10px] text-stone-400 shrink-0 ml-auto">{timeAgo}</span>
-        <button onClick={handleShare} title="Share on WhatsApp"
-          className="shrink-0 w-6 h-6 rounded-lg bg-green-50 flex items-center justify-center text-green-600 hover:bg-green-100 active:scale-95 transition-all">
-          <WAIcon />
-        </button>
-      </div>
-
-      {/* ── Row 2: Route ── */}
-      <div className="flex items-center gap-1.5 mb-1">
-        <MapPin size={12} className="text-orange-500 shrink-0" />
-        <span className="font-bold text-stone-900 text-sm truncate">{parcel.fromCity}</span>
-        <div className="flex-1 h-px bg-stone-200 mx-1 route-sweep-line" />
-        <span className="font-bold text-stone-900 text-sm truncate">{parcel.toCity}</span>
-        <MapPin size={12} className="text-emerald-500 shrink-0" />
-      </div>
-
-      {/* Station */}
-      {parcel.pickupStation && (
-        <div className="text-[10px] text-stone-400 ml-4 mb-1.5 truncate">📍 {parcel.pickupStation}</div>
-      )}
-
-      {/* ── Row 3: Item details — human readable ── */}
-      <div className="flex items-center gap-1.5 mb-1.5 text-[11px]">
-        <span className="text-base leading-none">{ITEM_EMOJI[parcel.itemType] || '📦'}</span>
-        <span className="font-medium text-stone-700">{ITEM_LABEL[parcel.itemType] || 'Item'}</span>
-        <span className="text-stone-400">·</span>
-        <span className="text-stone-600">Approx {parcel.weight} kg</span>
-        {parcel.offeredPrice && (
-          <>
-            <span className="text-stone-400">·</span>
-            <span className="font-semibold text-emerald-700 flex items-center gap-0.5">
-              <IndianRupee size={9} />{parcel.offeredPrice} offered
-            </span>
-          </>
-        )}
-      </div>
-
-      {/* ── Description ── */}
-      <p className="text-[11px] text-stone-500 line-clamp-2 leading-relaxed mb-2.5 italic">
-        "{parcel.description}"
-      </p>
-
-      {/* ── Row 4: Sender + actions ── */}
-      {sender && typeof sender === 'object' && (
-        <div className="flex items-center gap-2 pt-2.5 border-t border-stone-100">
-          <SenderAvatar user={sender} />
+  {
+    const ItemIcon = DESK_ITEM_ICON[parcel.itemType] || Package;
+    const [stLabel, stCls] = DESK_STATUS[parcel.status] || [parcel.status, 'bg-slate-100 text-slate-600'];
+    const hasSender = sender && typeof sender === 'object';
+    const sBtn = 'h-10 px-4 rounded-xl text-[14px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors';
+    return (
+      <div className="bg-white border border-slate-200 rounded-2xl p-4">
+        <div className="flex items-start gap-3">
+          <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0"><ItemIcon size={18} /></span>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-1">
-              <span className="text-xs font-semibold text-stone-800 truncate">{sender.name}</span>
-              {isVerified && <CheckCircle size={10} className="text-emerald-500 fill-emerald-500 shrink-0" />}
+            <div className="flex items-center gap-2 text-[16px] font-semibold text-slate-900 min-w-0">
+              <span className="truncate">{parcel.fromCity}</span><span className="text-slate-400 shrink-0">→</span><span className="truncate">{parcel.toCity}</span>
             </div>
-            <div className="flex items-center gap-1.5 text-[10px] text-stone-400 mt-0.5 flex-wrap">
-              <span className="flex items-center gap-0.5">
-                <Star size={9} className="text-amber-400 fill-amber-400" />
-                {sender.rating?.toFixed(1)}
-                {sender.totalRatings > 0 && ` (${sender.totalRatings})`}
-              </span>
-              {sender.city && <span>· 📍 {sender.city}</span>}
-              {isVerified && <span className="text-emerald-600 font-semibold">· KYC ✓</span>}
-            </div>
+            <div className="text-[13px] text-slate-500 mt-0.5">{ITEM_LABEL[parcel.itemType] || 'Item'} · approx {parcel.weight} kg · {timeAgo}</div>
           </div>
+          <button type="button" onClick={handleShare} aria-label="Share on WhatsApp"
+            className="w-9 h-9 -mr-2 -mt-1 rounded-full text-slate-400 active:bg-emerald-50 active:text-emerald-600 flex items-center justify-center shrink-0"><WAIcon /></button>
+        </div>
 
-          <div className="flex items-center gap-1.5 shrink-0">
-            {/* Edit — only for own open parcels */}
-            {onEdit && isOwn && parcel.status === 'open' && (
-              <button onClick={onEdit}
-                className="bg-stone-50 border border-stone-200 rounded-xl px-2.5 py-1.5 flex items-center gap-1 text-xs font-semibold text-stone-600 hover:bg-stone-100 transition-colors">
-                <Edit2 size={12} /> Edit
-              </button>
+        {parcel.description && <p className="text-[14px] text-slate-600 mt-3 line-clamp-2">{parcel.description}</p>}
+        {parcel.pickupStation && (
+          <p className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-1.5 min-w-0"><MapPin size={13} className="shrink-0" /><span className="truncate">{parcel.pickupStation}</span></p>
+        )}
+
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className={`text-[12px] font-semibold px-2 py-1 rounded-lg ${stCls}`}>{stLabel}</span>
+          <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+            {parcel.offeredPrice ? `Offers ₹${parcel.offeredPrice}` : 'Price open'}
+          </span>
+        </div>
+
+        {hasSender && !isOwn && (
+          <div className="flex items-center gap-3 mt-4 pt-3 border-t border-slate-100">
+            <span className="w-9 h-9 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center text-sm font-semibold text-slate-600 shrink-0">
+              {sender.profileImage ? <img src={sender.profileImage} alt="" className="w-full h-full object-cover" loading="lazy" /> : sender.name?.[0]?.toUpperCase()}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[14px] font-semibold text-slate-900 truncate">{sender.name}</span>
+                {isVerified && <CheckCircle size={14} className="text-emerald-600 shrink-0" aria-label="ID verified" />}
+              </span>
+              <span className="block text-[13px] text-slate-500 truncate">
+                {sender.totalRatings > 0 ? `★ ${sender.rating?.toFixed(1)} (${sender.totalRatings})` : 'No reviews yet'}{sender.city ? ` · ${sender.city}` : ''}
+              </span>
+            </span>
+            <button type="button" onClick={() => authGate(() => navigate(`/chat/${sender._id}`))}
+              className={`${sBtn} bg-kb-500 active:bg-kb-600 text-white shrink-0`}><MessageCircle size={16} /> Chat</button>
+          </div>
+        )}
+
+        {isOwn && (onEdit || showDelete || onFindMatch) && (
+          <div className="flex gap-2 mt-4">
+            {onFindMatch && parcel.status === 'open' && (
+              <button type="button" onClick={() => authGate(() => onFindMatch())} className={`${sBtn} flex-[2] bg-kb-500 active:bg-kb-600 text-white`}><Zap size={15} /> Find travellers</button>
+            )}
+            {onEdit && parcel.status === 'open' && (
+              <button type="button" onClick={onEdit} className={`${sBtn} flex-1 border border-slate-200 text-slate-800 active:bg-slate-50`}><Edit2 size={15} /> Edit</button>
             )}
             {showDelete && (
-              <button onClick={onDelete}
-                className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 hover:bg-red-100 transition-colors">
-                <Trash2 size={13} />
-              </button>
-            )}
-            {isOwn && onFindMatch && parcel.status === 'open' && (
-              <button onClick={() => authGate(() => onFindMatch())}
-                className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1">
-                <Zap size={11} /> Find Match
-              </button>
-            )}
-            {!isOwn && (
-              <button onClick={() => authGate(() => navigate(`/chat/${sender._id}`))}
-                className="btn-primary py-1.5 px-3 text-xs flex items-center gap-1">
-                <MessageCircle size={11} /> Chat
-              </button>
+              <button type="button" onClick={onDelete} aria-label="Delete request"
+                className="w-10 h-10 rounded-xl border border-red-200 text-red-600 active:bg-red-50 flex items-center justify-center shrink-0"><Trash2 size={16} /></button>
             )}
           </div>
-        </div>
-      )}
-    </div>
-  );
+        )}
+      </div>
+    );
+  }
 }

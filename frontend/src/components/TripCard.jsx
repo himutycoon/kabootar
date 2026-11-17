@@ -234,148 +234,95 @@ https://app.kabutar.in`
     );
   }
 
+  const hasTraveler = traveler && typeof traveler === 'object';
+  const clickable = !isOwn && !isPast;
+  const sBtn = 'h-10 px-4 rounded-xl text-[14px] font-semibold inline-flex items-center justify-center gap-1.5 transition-colors';
   return (
     <>
-      <div
-        className={`card p-3.5 animate-fade-in ${isPast ? 'opacity-60' : ''} ${!isOwn && !isPast ? 'cursor-pointer hover:shadow-md hover:border-orange-200 transition-all' : ''}`}
-        onClick={() => { if (!isOwn && !isPast) setShowDetail(true); }}
-      >
+      <div className={`bg-white border border-slate-200 rounded-2xl p-4 ${isPast ? 'opacity-60' : ''} ${clickable ? 'active:bg-slate-50' : ''}`}
+        onClick={() => { if (clickable) setShowDetail(true); }}>
 
-        {/* ── Row 1: Role label + date + transport + WA ── */}
-        <div className="flex items-center gap-1.5 mb-2.5">
-          {isOwn
-            ? <span className="text-[10px] font-bold uppercase tracking-wide bg-stone-100 text-stone-500 px-2 py-0.5 rounded-full shrink-0">Your Trip</span>
-            : <span className="text-[10px] font-bold uppercase tracking-wide bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full shrink-0">
-                {TRANSPORT_EMOJI[trip.transportMode]} Traveller
+        {/* Who */}
+        {isOwn ? (
+          <div className="flex items-center justify-between mb-3">
+            <span className="text-[12px] font-semibold uppercase tracking-wider text-slate-500">Your trip{isPast ? ' · Past' : ''}</span>
+            {!isPast && (
+              <button type="button" onClick={handleShare} aria-label="Share on WhatsApp"
+                className="w-9 h-9 -mr-2 rounded-full text-slate-400 active:bg-emerald-50 active:text-emerald-600 flex items-center justify-center"><WAIcon /></button>
+            )}
+          </div>
+        ) : hasTraveler && (
+          <div className="flex items-center gap-3 mb-3">
+            <span className="w-10 h-10 rounded-full overflow-hidden bg-slate-100 flex items-center justify-center shrink-0 text-sm font-semibold text-slate-600">
+              {traveler.profileImage ? <img src={traveler.profileImage} alt="" className="w-full h-full object-cover" loading="lazy" /> : traveler.name?.[0]?.toUpperCase()}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="flex items-center gap-1.5 min-w-0">
+                <span className="text-[15px] font-semibold text-slate-900 truncate">{traveler.name}</span>
+                {isVerified && <CheckCircle size={15} className="text-emerald-600 shrink-0" aria-label="ID verified" />}
               </span>
-          }
-          <span className="text-[11px] text-stone-500 font-medium shrink-0">
-            {formatTripDatesLong(trip)}
-          </span>
-          <span className="text-[10px] text-stone-400 shrink-0">· {TRANSPORT_LABELS[trip.transportMode]}</span>
-          {isPast && <span className="ml-auto text-[10px] bg-stone-100 text-stone-400 px-2 py-0.5 rounded-full font-semibold shrink-0">Past</span>}
-          {!isPast && (
-            <button onClick={handleShare} title="Share on WhatsApp"
-              className="ml-auto shrink-0 w-6 h-6 rounded-lg bg-green-50 flex items-center justify-center text-green-600 hover:bg-green-100 active:scale-95 transition-all">
-              <WAIcon />
-            </button>
-          )}
-        </div>
-
-        {/* ── Row 2: Route — the most important info ── */}
-        <div className="flex items-center gap-1.5 mb-1">
-          <MapPin size={12} className="text-orange-500 shrink-0" />
-          <span className="font-bold text-stone-900 text-sm truncate">{trip.fromCity}</span>
-          <div className="flex items-center gap-0.5 text-stone-300 shrink-0">
-            <div className="h-px w-6 route-sweep-line bg-stone-200" />
-            <Icon size={13} className="text-stone-400" />
-            <div className="h-px w-6 route-sweep-line bg-stone-200" />
-          </div>
-          <span className="font-bold text-stone-900 text-sm truncate">{trip.toCity}</span>
-          <MapPin size={12} className="text-emerald-500 shrink-0" />
-        </div>
-
-        {/* Station */}
-        {trip.pickupStation && (
-          <div className="text-[10px] text-stone-400 ml-4 mb-1.5 truncate">📍 {trip.pickupStation}</div>
-        )}
-
-        {/* ── Row 3: Departure → Arrival (if set) ── */}
-        {(dep || arr) && (
-          <div className="flex items-center gap-1 text-[11px] text-stone-600 mb-1.5">
-            <Clock size={10} className="text-orange-400 shrink-0" />
-            {dep && <span className="font-medium">Departs {dep}</span>}
-            {dep && arr && <span className="text-stone-300 mx-0.5">·</span>}
-            {arr && <span className="text-stone-500">Arrives {arr}</span>}
-            {duration && <span className="text-stone-400 ml-1">({duration})</span>}
-          </div>
-        )}
-
-        {/* ── Row 4: Capacity chips (compact) ── */}
-        <div className="flex items-center gap-1.5 mb-2.5 flex-wrap">
-          <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
-            📦 {trip.availableWeight} kg
-          </span>
-          <span className="text-[11px] font-bold bg-stone-50 border border-stone-100 text-stone-600 px-2 py-0.5 rounded-lg">
-            ₹{trip.pricePerKg}/kg
-          </span>
-          {(trip.pnrNumber || trip.trainNumber) && (
-            <span className="text-[9px] font-bold bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded-lg">🎫 Ticket shared</span>
-          )}
-          {trip.flightNumber && (
-            <span className="text-[9px] font-bold bg-sky-50 text-sky-600 border border-sky-100 px-1.5 py-0.5 rounded-lg">✈️ {trip.flightNumber}</span>
-          )}
-        </div>
-
-        {/* ── Row 5: Traveller row + compact CTAs ── */}
-        {traveler && typeof traveler === 'object' && (
-          <div className="pt-2.5 border-t border-stone-100">
-            {!isOwn ? (
-              /* ── Single row: Avatar | Name+Rating | [Chat] [View →] ── */
-              <div className="flex items-center gap-2">
-                {/* Avatar with blue verified ring/tick */}
-                <Avatar user={traveler} verified={isVerified} />
-
-                {/* Name + trust info */}
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    <span className="text-xs font-bold text-stone-900 truncate">{traveler.name}</span>
-                    {isVerified && (
-                      <span className="inline-flex items-center gap-0.5 text-[9px] font-black text-blue-600 bg-blue-50 border border-blue-100 px-1.5 py-0.5 rounded-full shrink-0">
-                        ✓ Trusted
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-1 text-[10px] text-stone-400">
-                    <Star size={9} className="text-amber-400 fill-amber-400" />
-                    <span className="font-semibold">{traveler.rating?.toFixed(1)}</span>
-                    {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} trips</span>}
-                  </div>
-                </div>
-
-                {/* Inline CTAs — Chat + View on same line, no wrap */}
-                {!isPast && (
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); authGate(() => navigate(`/chat/${traveler._id}`)); }}
-                      className="flex items-center gap-1 px-2.5 py-1.5 rounded-xl text-[11px] font-bold text-stone-600 bg-stone-100 border border-stone-200 active:scale-95 transition-all whitespace-nowrap">
-                      <MessageCircle size={11} /> Chat
-                    </button>
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setShowDetail(true); }}
-                      className="flex items-center gap-0.5 px-2.5 py-1.5 rounded-xl font-bold text-[11px] text-white active:scale-95 transition-all whitespace-nowrap"
-                      style={{ background: 'linear-gradient(135deg,#f97316,#ea580c)', boxShadow: '0 2px 6px rgba(249,115,22,0.3)' }}>
-                      View →
-                    </button>
-                  </div>
-                )}
-              </div>
-            ) : (
-              /* ── Owner: show management actions inline ── */
-              <div className="flex items-center gap-1.5 flex-wrap">
-                <span className="text-xs text-stone-400 font-medium flex-1">Your trip</span>
-                {onMarkFull && !isPast && (
-                  <button onClick={(e) => { e.stopPropagation(); onMarkFull(); }}
-                    className="bg-emerald-50 border border-emerald-200 rounded-xl px-2 py-1 flex items-center gap-1 text-[10px] font-bold text-emerald-700 active:scale-95 transition-all">
-                    ✓ Full
-                  </button>
-                )}
-                {onEdit && !isPast && (
-                  <button onClick={(e) => { e.stopPropagation(); onEdit(); }}
-                    className="bg-stone-50 border border-stone-200 rounded-xl px-2 py-1 flex items-center gap-1 text-[10px] font-bold text-stone-600 active:scale-95 transition-all">
-                    <Edit2 size={10} /> Edit
-                  </button>
-                )}
-                {showDelete && !isPast && (
-                  <button onClick={(e) => { e.stopPropagation(); onDelete(); }}
-                    className="w-7 h-7 rounded-lg bg-red-50 flex items-center justify-center text-red-400 active:scale-95 transition-all">
-                    <Trash2 size={12} />
-                  </button>
-                )}
-              </div>
+              <span className="flex items-center gap-1 text-[13px] text-slate-500">
+                {traveler.totalRatings > 0
+                  ? <><Star size={12} className="fill-amber-400 text-amber-400" /> <span className="font-semibold text-slate-700">{traveler.rating?.toFixed(1)}</span> ({traveler.totalRatings})</>
+                  : 'No reviews yet'}
+                {traveler.tripsCompleted > 0 && <span>· {traveler.tripsCompleted} deliveries</span>}
+              </span>
+            </span>
+            {!isPast && (
+              <button type="button" onClick={handleShare} aria-label="Share on WhatsApp"
+                className="w-9 h-9 -mr-2 rounded-full text-slate-400 active:bg-emerald-50 active:text-emerald-600 flex items-center justify-center shrink-0"><WAIcon /></button>
             )}
           </div>
         )}
+
+        {/* Route */}
+        <div className="flex items-center gap-2 text-[16px] font-semibold text-slate-900 min-w-0">
+          <span className="truncate">{trip.fromCity}</span>
+          <span className="text-slate-400 shrink-0">→</span>
+          <span className="truncate">{trip.toCity}</span>
+        </div>
+        <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-1">
+          <Icon size={14} className="shrink-0" />
+          <span className="truncate">{TRANSPORT_LABELS[trip.transportMode]} · {formatTripDatesLong(trip)}</span>
+        </div>
+        {(dep || arr) && (
+          <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-0.5">
+            <Clock size={13} className="shrink-0" />
+            <span>{dep && `Departs ${dep}`}{dep && arr ? ' · ' : ''}{arr && `Arrives ${arr}`}{duration ? ` (${duration})` : ''}</span>
+          </div>
+        )}
+        {trip.pickupStation && (
+          <div className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-0.5 min-w-0">
+            <MapPin size={13} className="shrink-0" /><span className="truncate">{trip.pickupStation}</span>
+          </div>
+        )}
+
+        {/* Capacity + price */}
+        <div className="flex items-center gap-2 mt-3 flex-wrap">
+          <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">{trip.availableWeight} kg space</span>
+          <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">₹{trip.pricePerKg}/kg</span>
+          {(trip.pnrNumber || trip.trainNumber) && <span className="text-[12px] font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-lg">Ticket details shared</span>}
+          {trip.flightNumber && <span className="text-[12px] font-semibold text-sky-700 bg-sky-50 px-2 py-1 rounded-lg">{trip.flightNumber}</span>}
+        </div>
+
+        {/* Actions */}
+        {!isPast && (clickable && hasTraveler ? (
+          <div className="grid grid-cols-2 gap-2 mt-4" onClick={e => e.stopPropagation()}>
+            <button type="button" onClick={() => authGate(() => navigate(`/chat/${traveler._id}`))}
+              className={`${sBtn} border border-slate-200 text-slate-800 active:bg-slate-50`}><MessageCircle size={16} /> Chat</button>
+            <button type="button" onClick={() => setShowDetail(true)}
+              className={`${sBtn} bg-kb-500 active:bg-kb-600 text-white`}>View trip <ChevronRight size={16} /></button>
+          </div>
+        ) : isOwn && (onMarkFull || onEdit || showDelete) ? (
+          <div className="flex gap-2 mt-4" onClick={e => e.stopPropagation()}>
+            {onEdit && <button type="button" onClick={onEdit} className={`${sBtn} flex-1 border border-slate-200 text-slate-800 active:bg-slate-50`}><Edit2 size={15} /> Edit</button>}
+            {onMarkFull && <button type="button" onClick={onMarkFull} className={`${sBtn} flex-1 border border-slate-200 text-slate-800 active:bg-slate-50`}><CheckCircle size={15} /> Mark full</button>}
+            {showDelete && (
+              <button type="button" onClick={onDelete} aria-label="Delete trip"
+                className="w-10 h-10 rounded-xl border border-red-200 text-red-600 active:bg-red-50 flex items-center justify-center shrink-0"><Trash2 size={16} /></button>
+            )}
+          </div>
+        ) : null)}
       </div>
 
       {modals}

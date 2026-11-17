@@ -15,6 +15,9 @@ import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader, Tabs, EmptyState, RowSkeleton } from '../components/desktop/ui';
 import { btn } from '../components/desktop/styles';
 import ResultsSearchBar from '../components/desktop/ResultsSearchBar';
+import MobileResultsSearch from '../components/mobile/MobileResultsSearch';
+import { ScreenHeader, Segmented, CardSkeleton } from '../components/mobile/ui';
+import { m } from '../components/mobile/styles';
 import { Package, SearchX } from 'lucide-react';
 
 const PULL_THRESHOLD = 64;
@@ -122,12 +125,6 @@ export default function ParcelsPage() {
     return list;
   }, [source, activeFilter, loc.enabled, loc.nearbyCities, loc.city]); // eslint-disable-line
 
-  const renderStaggered = (items, fn) =>
-    items.map((item, i) => (
-      <div key={item._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
-        {fn(item)}
-      </div>
-    ));
 
   const modals = (
     <>
@@ -217,144 +214,74 @@ export default function ParcelsPage() {
     );
   }
 
+  // ── Mobile layout (Android app + phone browsers) ──
   return (
-    <div className="px-4 py-5 relative"
-      onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
-
-      {/* Pull-to-refresh */}
+    <div className="relative px-4 pt-1 pb-4" onTouchStart={onTouchStart} onTouchMove={onTouchMove} onTouchEnd={onTouchEnd}>
       <div className="absolute left-0 right-0 flex justify-center pointer-events-none z-10 transition-all duration-200"
         style={{ top: Math.max(0, pullDelta - 8), opacity: pullDelta / PULL_THRESHOLD }}>
-        <div className="bg-white rounded-full shadow-md border border-stone-100 px-3 py-1.5 flex items-center gap-2">
-          <RefreshCw size={13} className={`text-orange-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`}
-            style={{ animationDuration: '0.7s' }} />
-          <span className="text-xs font-semibold text-stone-600">
-            {pullDelta >= PULL_THRESHOLD ? 'Refreshing…' : 'Pull to refresh'}
-          </span>
+        <div className="bg-white rounded-full border border-slate-200 px-3 py-1.5 flex items-center gap-2">
+          <RefreshCw size={13} className={`text-kb-500 ${refreshing || pullDelta >= PULL_THRESHOLD ? 'animate-spin' : ''}`} />
+          <span className="text-xs font-semibold text-slate-600">{pullDelta >= PULL_THRESHOLD ? 'Refreshing…' : 'Pull to refresh'}</span>
         </div>
       </div>
 
-      {/* Header */}
-      {/* ── Compact header ── */}
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h1 className="text-lg font-bold text-stone-900">Parcels</h1>
-          {fetchedAt && !loading && <LiveBadge time={fetchedAt} />}
-        </div>
-        <button onClick={() => authGate(() => setShowModal(true))}
-          className="flex items-center gap-1 text-xs font-bold text-white px-3 py-2 rounded-xl active:scale-95 transition-all"
-          style={{ background: 'linear-gradient(135deg,#3b82f6,#2563eb)', boxShadow: '0 2px 8px rgba(59,130,246,0.3)' }}>
-          <Plus size={13} /> Send Parcel
-        </button>
-      </div>
+      <ScreenHeader title="Parcels" back
+        right={<button type="button" onClick={() => authGate(() => setShowModal(true))} className={`${m.btnSmall} bg-kb-500 active:bg-kb-600 text-white`}><Plus size={15} /> Send</button>} />
 
-      {/* Location filter chips — compact */}
-      <div className="mb-2.5">
-        <LocationFilterBar
-          activeFilter={activeFilter}
-          onFilter={setActiveFilter}
-          loc={{ ...loc, nearbyCities: loc.nearbyCities }}
-          onDetect={loc.detect}
-          onCityChange={loc.setCity}
-          onRangeChange={loc.setRange}
-          onClear={loc.clear}
-          resultCount={activeFilter !== 'all' ? filtered.length : undefined}
-        />
-      </div>
+      <Segmented value={tab} onChange={k => k === 'mine' ? authGate(() => setTab('mine')) : setTab(k)}
+        items={[['all', 'Find parcels'], ['mine', 'My requests', user ? myParcels.length : undefined]]} />
 
-      {/* Search row — compact */}
-      <div className="flex gap-1.5 mb-3">
-        <input className="input-field flex-1 text-xs py-2" placeholder="From" value={search.from}
-          onChange={e => setSearch(s => ({ ...s, from: e.target.value }))}
-          onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
-        <input className="input-field flex-1 text-xs py-2" placeholder="To" value={search.to}
-          onChange={e => setSearch(s => ({ ...s, to: e.target.value }))}
-          onKeyDown={e => e.key === 'Enter' && fetchParcels()} />
-        <button onClick={fetchParcels} className="bg-orange-500 text-white px-3 py-2 rounded-xl shrink-0 active:scale-95 transition-all">
-          <Search size={14} />
-        </button>
-        {(search.from || search.to) && (
-          <button onClick={() => setSearch({ from: '', to: '' })} className="px-2.5 py-2 rounded-xl bg-stone-100 text-stone-400 shrink-0 active:scale-95 transition-all">
-            <X size={14} />
-          </button>
+      <div className="mt-4 space-y-3">
+        {tab === 'all' && (
+          <MobileResultsSearch key={`${search.from}|${search.to}`} value={search}
+            submitLabel="Find parcels" onSubmit={next => setSearch(next)} />
+        )}
+
+        {(tab === 'mine' || hasSearched) && (
+          <LocationFilterBar activeFilter={activeFilter} onFilter={setActiveFilter}
+            loc={{ ...loc, nearbyCities: loc.nearbyCities }} onDetect={loc.detect} onCityChange={loc.setCity}
+            onRangeChange={loc.setRange} onClear={loc.clear}
+            resultCount={activeFilter !== 'all' ? filtered.length : undefined} />
+        )}
+
+        {tab === 'all' && !hasSearched ? (
+          <div className={m.card}><EmptyState icon={Search} title="Search parcel requests"
+            body="Enter a pickup or destination city to see requests you could carry on your trip." /></div>
+        ) : loading && tab === 'all' ? (
+          <div className="space-y-3"><CardSkeleton /><CardSkeleton /></div>
+        ) : filtered.length === 0 ? (
+          <div className={m.card}>
+            {tab === 'mine' ? (
+              <EmptyState icon={Package} title="No parcel requests yet"
+                body="Post a request and travellers heading your way can reach you." actionLabel="Send a parcel" onAction={() => setShowModal(true)} />
+            ) : (
+              <EmptyState icon={SearchX}
+                title={activeFilter === 'nearby' && loc.city ? `No parcels near ${loc.city}` : 'No open requests on this route'}
+                body={activeFilter !== 'all' ? 'Try showing all results.' : 'Try a nearby city, or check back later.'}
+                actionLabel={activeFilter !== 'all' ? 'Show all results' : undefined}
+                onAction={() => setActiveFilter('all')} />
+            )}
+          </div>
+        ) : (
+          <>
+            {tab === 'all' && (
+              <div className="flex items-center justify-between px-1">
+                <p className="text-[13px] text-slate-600"><span className="font-semibold text-slate-900">{filtered.length}</span> request{filtered.length !== 1 ? 's' : ''} found</p>
+                {fetchedAt && <LiveBadge time={fetchedAt} />}
+              </div>
+            )}
+            {filtered.map(parcel => (
+              <ParcelCard key={parcel._id} parcel={parcel}
+                showDelete={tab === 'mine'}
+                onDelete={() => handleDelete(parcel._id)}
+                onFindMatch={() => authGate(() => setMatchParcel(parcel))}
+                onEdit={tab === 'mine' ? () => setEditingParcel(parcel) : undefined} />
+            ))}
+          </>
         )}
       </div>
 
-      {/* Tabs — compact */}
-      <div className="flex gap-1 bg-stone-100 rounded-xl p-0.5 mb-3">
-        <button onClick={() => setTab('all')}
-          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'all' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          All Requests
-        </button>
-        <button onClick={() => authGate(() => setTab('mine'))}
-          className={`flex-1 py-1.5 rounded-[10px] text-xs font-semibold transition-all ${tab === 'mine' ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}>
-          My Requests
-        </button>
-      </div>
-
-      {tab === 'all' && !hasSearched ? (
-        <div className="card p-8 text-center animate-fade-in">
-          <div className="text-4xl mb-3">📦</div>
-          <p className="text-stone-700 font-semibold text-sm mb-1">Search for Parcel Requests</p>
-          <p className="text-stone-400 text-xs leading-relaxed">
-            Enter a From or To city above to find open parcel requests on your route.
-          </p>
-        </div>
-      ) : loading ? <ParcelSkeletons count={3} /> :
-       filtered.length === 0 ? (
-        <div className="card p-8 text-center animate-fade-in">
-          <div className="text-3xl mb-2">📦</div>
-          <p className="text-stone-600 text-sm font-semibold mb-1">
-            {activeFilter === 'nearby' && loc.city
-              ? `No parcels found near ${loc.city}`
-              : tab === 'mine' ? 'No requests yet' : 'No parcel requests on this route'}
-          </p>
-          {activeFilter !== 'all' ? (
-            <button onClick={() => setActiveFilter('all')} className="text-orange-500 text-xs font-semibold mt-1">
-              Show all results
-            </button>
-          ) : tab !== 'mine' && (
-            <p className="text-stone-400 text-xs mt-1">Try a different route</p>
-          )}
-        </div>
-       ) : (
-        <div className="space-y-2">
-          {hasSearched && (
-            <p className="text-xs text-stone-400">
-              {filtered.length} request{filtered.length !== 1 ? 's' : ''} found
-              {activeFilter === 'nearby' && loc.city ? ` near ${loc.city}` : ''}
-            </p>
-          )}
-          {renderStaggered(filtered, parcel => (
-            <ParcelCard parcel={parcel}
-              showDelete={tab === 'mine'}
-              onDelete={() => handleDelete(parcel._id)}
-              onFindMatch={() => authGate(() => setMatchParcel(parcel))}
-              onEdit={tab === 'mine' ? () => setEditingParcel(parcel) : undefined}
-            />
-          ))}
-        </div>
-       )
-      }
-
-      {showModal && (
-        <PostParcelModal onClose={() => setShowModal(false)}
-          onSuccess={p => { setMyParcels(prev => [p, ...prev]); setParcels(prev => [p, ...prev]); setShowModal(false); }} />
-      )}
-      {matchParcel && <MatchesModal parcel={matchParcel} onClose={() => setMatchParcel(null)} />}
-
-      {editingParcel && (
-        <PostParcelModal
-          initialData={editingParcel}
-          parcelId={editingParcel._id}
-          onClose={() => setEditingParcel(null)}
-          onSuccess={updated => {
-            setParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
-            setMyParcels(prev => prev.map(p => p._id === updated._id ? updated : p));
-            setEditingParcel(null);
-            toast.success('Parcel request updated!');
-          }}
-        />
-      )}
+      {modals}
     </div>
   );
 }

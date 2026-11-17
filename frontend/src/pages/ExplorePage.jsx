@@ -1,9 +1,8 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import api from '../lib/api';
 import TripCard from '../components/TripCard';
 import ParcelCard from '../components/ParcelCard';
-import { TripCardSkeleton, ParcelCardSkeleton } from '../components/SkeletonCard';
 import { TrendingUp, Star, RefreshCw, ChevronRight, Users, Send, Package } from 'lucide-react';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { useAuth } from '../context/AuthContext';
@@ -12,36 +11,10 @@ import PostParcelModal from '../components/PostParcelModal';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader, SectionHeader, EmptyState, RowSkeleton, Avatar, RouteText } from '../components/desktop/ui';
 import { btn } from '../components/desktop/styles';
-import { Route, BadgeCheck } from 'lucide-react';
-
-function Section({ icon, title, cta, onCta, children, loading, skeletonCount = 2, skeletonType = 'trip' }) {
-  return (
-    <section>
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <span className="text-base">{icon}</span>
-          <h2 className="font-bold text-stone-900 text-sm">{title}</h2>
-        </div>
-        {cta && (
-          <button onClick={onCta} className="text-orange-500 text-xs font-semibold flex items-center gap-0.5">
-            {cta} <ChevronRight size={13} />
-          </button>
-        )}
-      </div>
-      {loading ? (
-        <div className="space-y-2">
-          {Array.from({ length: skeletonCount }).map((_, i) => (
-            <div key={i}>
-              {skeletonType === 'parcel'
-                ? <ParcelCardSkeleton delay={i * 80} />
-                : <TripCardSkeleton delay={i * 80} />}
-            </div>
-          ))}
-        </div>
-      ) : children}
-    </section>
-  );
-}
+import { Route, BadgeCheck, Search } from 'lucide-react';
+import { ScreenHeader, SectionTitle, Segmented, CardSkeleton, ErrorState } from '../components/mobile/ui';
+import { m } from '../components/mobile/styles';
+import { getTripDates } from '../lib/tripDates';
 
 export default function ExplorePage() {
   const navigate  = useNavigate();
@@ -53,23 +26,22 @@ export default function ExplorePage() {
   const [refreshing, setRefreshing] = useState(false);
   const [showTrip,   setShowTrip]   = useState(false);
   const [showParcel, setShowParcel] = useState(false);
+  const routerLocation = useLocation();
+  const [kind,  setKind]  = useState(routerLocation.state?.tab === 'parcels' ? 'parcels' : 'trips');
+  const [query, setQuery] = useState('');
+  const [when,  setWhen]  = useState('any'); // any | today | week | month
 
   const load = async () => {
     try {
       const r = await api.get('/explore');
       setData(r.data);
-    } catch {} finally { setLoading(false); setRefreshing(false); }
+    } catch { /* data stays null → error state is shown */ } finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => { load(); }, []);
 
   const refresh = () => { setRefreshing(true); load(); };
 
-  const stagger = (items, render) => items.map((item, i) => (
-    <div key={item._id} style={{ animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 55}ms` }}>
-      {render(item)}
-    </div>
-  ));
 
   const isDesktopWeb = useDesktopWeb();
   const postTrip = () => authGate(() => {
@@ -173,169 +145,88 @@ export default function ExplorePage() {
     );
   }
 
+  // ── Mobile layout (Android app + phone browsers) ──
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (x) => !q || [x.fromCity, x.toCity].some(c => c?.toLowerCase().includes(q));
+  const inWindow = (trip) => {
+    if (when === 'any') return true;
+    const start = new Date(); start.setHours(0, 0, 0, 0);
+    const end = new Date(start); end.setDate(end.getDate() + (when === 'today' ? 1 : when === 'week' ? 7 : 31));
+    return getTripDates(trip).some(d => d >= start && d < end);
+  };
+  const trips   = (data?.trips || []).filter(t => matchesQuery(t) && inWindow(t));
+  const parcels = (data?.parcels || []).filter(matchesQuery);
+  const list    = kind === 'trips' ? trips : parcels;
+
   return (
-    <div className="px-4 py-5 space-y-6 pb-8">
+    <div className="px-4 pt-1 pb-4">
+      <ScreenHeader title="Explore" sub="Upcoming trips and open requests"
+        right={<button type="button" onClick={refresh} aria-label="Refresh"
+          className="w-10 h-10 rounded-full flex items-center justify-center text-slate-600 active:bg-slate-100">
+          <RefreshCw size={19} className={refreshing ? 'animate-spin' : ''} />
+        </button>} />
 
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-stone-900">Explore</h1>
-          <p className="text-xs text-stone-400 mt-0.5">Live marketplace — updated now</p>
+      <div className="relative">
+        <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+        <input className={`${m.input} pl-11`} placeholder="Filter by city or route" value={query}
+          onChange={e => setQuery(e.target.value)} enterKeyHint="search" aria-label="Filter by city" />
+      </div>
+
+      <Segmented className="mt-3" value={kind} onChange={setKind}
+        items={[['trips', 'Travellers', data ? trips.length : undefined], ['parcels', 'Parcels', data ? parcels.length : undefined]]} />
+
+      {kind === 'trips' && (
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 mt-3 pb-0.5" style={{ scrollbarWidth: 'none' }}>
+          {[['any', 'Any time'], ['today', 'Today'], ['week', 'Next 7 days'], ['month', 'Next 30 days']].map(([k, label]) => (
+            <button key={k} type="button" onClick={() => setWhen(k)} className={`${m.chip(when === k)} shrink-0`}>{label}</button>
+          ))}
         </div>
-        <button onClick={refresh}
-          className="w-9 h-9 bg-stone-100 rounded-xl flex items-center justify-center active:scale-90 transition-all">
-          <RefreshCw size={15} className={`text-stone-500 ${refreshing ? 'animate-spin' : ''}`}
-            style={{ animationDuration: '0.8s' }} />
-        </button>
-      </div>
+      )}
 
-      {/* ── POST ACTIONS ── */}
-      <div className="grid grid-cols-2 gap-2.5">
-        <button
-          onClick={() => authGate(() => {
-            if (user?.kycStatus !== 'verified') {
-              import('react-hot-toast').then(({ default: t }) => t.error('KYC required to post trips'));
-              setTimeout(() => navigate('/kyc'), 600);
-              return;
-            }
-            setShowTrip(true);
-          })}
-          className="flex items-center gap-2.5 rounded-2xl px-4 py-3 active:scale-[0.97] transition-all text-left"
-          style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)', boxShadow: '0 3px 12px rgba(249,115,22,0.3)' }}>
-          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-            <Send size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-xs font-black text-white">Post a Trip</p>
-            <p className="text-[10px] text-orange-100">Earn by carrying</p>
-          </div>
-        </button>
-        <button
-          onClick={() => authGate(() => setShowParcel(true))}
-          className="flex items-center gap-2.5 rounded-2xl px-4 py-3 active:scale-[0.97] transition-all text-left"
-          style={{ background: 'linear-gradient(135deg, #3b82f6, #2563eb)', boxShadow: '0 3px 12px rgba(59,130,246,0.3)' }}>
-          <div className="w-8 h-8 rounded-xl bg-white/20 flex items-center justify-center shrink-0">
-            <Package size={15} className="text-white" />
-          </div>
-          <div>
-            <p className="text-xs font-black text-white">Send Parcel</p>
-            <p className="text-[10px] text-blue-100">Find a traveller</p>
-          </div>
-        </button>
-      </div>
-
-      {/* Trending Routes */}
-      <Section icon="🔥" title="Trending Routes" loading={false}>
-        {loading ? (
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {[0,1,2,3].map(i => <div key={i} className="h-16 w-32 shrink-0 bg-stone-100 rounded-2xl animate-pulse" />)}
-          </div>
-        ) : (data?.trending?.length ?? 0) === 0 ? (
-          <p className="text-stone-400 text-xs py-3 text-center bg-stone-50 rounded-xl">No active routes yet</p>
-        ) : (
-          <div className="flex gap-2 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-            {data.trending.map((r, i) => (
-              <button key={i}
-                onClick={() => navigate('/trips', { state: { from: r.from, to: r.to } })}
-                className="shrink-0 bg-white border border-stone-100 rounded-2xl px-4 py-3 text-left shadow-sm active:scale-95 transition-all hover:border-orange-200"
-                style={{ animation: 'staggerIn 0.3s ease both', animationDelay: `${i * 40}ms` }}>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <TrendingUp size={11} className="text-orange-500" />
-                  <span className="text-[10px] font-bold text-orange-500">#{i + 1}</span>
-                </div>
-                <div className="text-xs font-bold text-stone-900 whitespace-nowrap">{r.from} → {r.to}</div>
-                <div className="text-[11px] text-stone-400 mt-0.5">{r.count} traveller{r.count !== 1 ? 's' : ''}</div>
+      {!loading && (data?.trending?.length ?? 0) > 0 && !q && (
+        <section className="mt-6">
+          <SectionTitle title="Popular routes" />
+          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+            {data.trending.map(r => (
+              <button key={`${r.from}-${r.to}`} type="button" onClick={() => navigate('/trips', { state: { from: r.from, to: r.to } })}
+                className="shrink-0 h-10 px-3.5 rounded-full bg-white border border-slate-200 flex items-center gap-2 text-[13px] font-semibold text-slate-800 active:bg-slate-50">
+                {r.from} <span className="text-slate-400">→</span> {r.to}
+                <span className="text-xs font-medium text-slate-400">{r.count}</span>
               </button>
-            ))}
-          </div>
-        )}
-      </Section>
-
-      {/* Active Travellers */}
-      <Section icon="✈️" title="Active Travellers"
-        cta="Search" onCta={() => navigate('/trips')}
-        loading={loading} skeletonCount={3} skeletonType="trip">
-        {(data?.trips?.length ?? 0) === 0 ? (
-          <div className="card p-6 text-center">
-            <div className="text-2xl mb-2">✈️</div>
-            <p className="text-stone-500 text-sm">No active trips right now</p>
-            <button onClick={() => authGate(() => setShowTrip(true))}
-              className="text-orange-500 text-xs font-semibold mt-2">+ Post your trip</button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {stagger(data.trips.slice(0, 6), trip => <TripCard trip={trip} />)}
-            {data.trips.length > 6 && (
-              <button onClick={() => navigate('/trips')}
-                className="w-full py-3 text-orange-500 text-sm font-semibold bg-orange-50 rounded-2xl border border-orange-100 active:scale-98 transition-all">
-                See all {data.trips.length} travellers →
-              </button>
-            )}
-          </div>
-        )}
-      </Section>
-
-      {/* Open Parcel Requests */}
-      <Section icon="📦" title="Open Parcel Requests"
-        cta="Search" onCta={() => navigate('/parcels')}
-        loading={loading} skeletonCount={2} skeletonType="parcel">
-        {(data?.parcels?.length ?? 0) === 0 ? (
-          <div className="card p-6 text-center">
-            <div className="text-2xl mb-2">📦</div>
-            <p className="text-stone-500 text-sm">No open requests right now</p>
-            <button onClick={() => authGate(() => setShowParcel(true))}
-              className="text-orange-500 text-xs font-semibold mt-2">+ Post a request</button>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {stagger(data.parcels.slice(0, 5), parcel => <ParcelCard parcel={parcel} />)}
-            {data.parcels.length > 5 && (
-              <button onClick={() => navigate('/parcels')}
-                className="w-full py-3 text-orange-500 text-sm font-semibold bg-orange-50 rounded-2xl border border-orange-100 active:scale-98 transition-all">
-                See all {data.parcels.length} requests →
-              </button>
-            )}
-          </div>
-        )}
-      </Section>
-
-      {/* Trusted Members */}
-      {(data?.users?.length ?? 0) > 0 && (
-        <section>
-          <div className="flex items-center gap-2 mb-3">
-            <Users size={14} className="text-orange-500" />
-            <h2 className="font-bold text-stone-900 text-sm">Trusted Members</h2>
-          </div>
-          <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: 'none' }}>
-            {data.users.map((u, i) => (
-              <div key={u._id}
-                className="shrink-0 bg-white border border-stone-100 rounded-2xl p-3 text-center shadow-sm"
-                style={{ minWidth: 80, animation: 'staggerIn 0.35s ease both', animationDelay: `${i * 50}ms` }}>
-                <div className="w-12 h-12 rounded-2xl overflow-hidden bg-orange-100 mx-auto mb-2 flex items-center justify-center">
-                  {u.profileImage
-                    ? <img src={u.profileImage} alt={u.name} className="w-full h-full object-cover" />
-                    : <span className="text-orange-600 font-black text-lg">{u.name?.[0]?.toUpperCase()}</span>}
-                </div>
-                <div className="text-[11px] font-bold text-stone-900 truncate max-w-[72px]">{u.name?.split(' ')[0]}</div>
-                <div className="flex items-center justify-center gap-0.5 mt-0.5">
-                  <Star size={9} className="text-amber-400 fill-amber-400" />
-                  <span className="text-[10px] text-stone-500 font-medium">{u.rating?.toFixed(1)}</span>
-                </div>
-                <div className="text-[9px] text-emerald-500 font-semibold mt-0.5">✓ KYC</div>
-              </div>
             ))}
           </div>
         </section>
       )}
 
-      {showTrip && (
-        <PostTripModal onClose={() => setShowTrip(false)}
-          onSuccess={() => { setShowTrip(false); load(); }} />
-      )}
-      {showParcel && (
-        <PostParcelModal onClose={() => setShowParcel(false)}
-          onSuccess={() => { setShowParcel(false); load(); }} />
-      )}
+      <section className="mt-6 space-y-3">
+        <SectionTitle title={kind === 'trips' ? 'Available trips' : 'Recent parcel requests'}
+          action={kind === 'trips' ? 'Search by route' : 'Search by route'}
+          onAction={() => navigate(kind === 'trips' ? '/trips' : '/parcels')} />
+        {loading ? (
+          <><CardSkeleton /><CardSkeleton /></>
+        ) : !data ? (
+          <div className={m.card}><ErrorState onRetry={refresh} /></div>
+        ) : list.length === 0 ? (
+          <div className={m.card}>
+            {kind === 'trips' ? (
+              <EmptyState icon={Route} title={q || when !== 'any' ? 'No trips match these filters' : 'No upcoming trips right now'}
+                body={q || when !== 'any' ? 'Try another city or a wider date range.' : 'Be the first to post a trip on your route.'}
+                actionLabel={q || when !== 'any' ? 'Clear filters' : 'Post a trip'}
+                onAction={q || when !== 'any' ? () => { setQuery(''); setWhen('any'); } : postTrip} />
+            ) : (
+              <EmptyState icon={Package} title={q ? 'No requests match this city' : 'No open requests right now'}
+                body={q ? 'Try another city.' : 'Post a request and travellers heading your way can reach you.'}
+                actionLabel={q ? 'Clear filter' : 'Send a parcel'}
+                onAction={q ? () => setQuery('') : () => authGate(() => setShowParcel(true))} />
+            )}
+          </div>
+        ) : kind === 'trips'
+          ? trips.map(t => <TripCard key={t._id} trip={t} />)
+          : parcels.map(p => <ParcelCard key={p._id} parcel={p} />)}
+      </section>
+
+      {showTrip && <PostTripModal onClose={() => setShowTrip(false)} onSuccess={() => { setShowTrip(false); load(); }} />}
+      {showParcel && <PostParcelModal onClose={() => setShowParcel(false)} onSuccess={() => { setShowParcel(false); load(); }} />}
     </div>
   );
 }

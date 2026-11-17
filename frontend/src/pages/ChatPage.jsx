@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import { getSocket, getRoomId } from '../lib/socket';
-import { ChevronLeft, Send, Star, IndianRupee, Check, X, ImageIcon, MoreVertical } from 'lucide-react';
+import { ArrowLeft, Send, Star, IndianRupee, Check, X, ImageIcon, MoreVertical, Package, BadgeCheck, ChevronRight, ShieldCheck } from 'lucide-react';
 import ReportBlockSheet from '../components/ReportBlockSheet';
 import { format, isToday, isYesterday, isSameDay } from 'date-fns';
 import RatingModal from '../components/RatingModal';
@@ -233,21 +233,21 @@ export default function ChatPage() {
 
   const pane = (
     // ── Mobile: fixed full-screen layout · Desktop: fills the right pane of the messages shell ──
-    <div className={d ? 'flex-1 min-h-0 flex flex-col bg-[#FAF9F7]' : 'fixed inset-0 z-50 flex flex-col bg-stone-50'}
+    <div className={d ? 'flex-1 min-h-0 flex flex-col bg-[#FAF9F7]' : 'fixed inset-0 z-50 flex flex-col bg-[#FAF9F7] font-inter'}
          style={d ? undefined : { paddingTop: 'env(safe-area-inset-top,0px)', paddingBottom: 'env(safe-area-inset-bottom,0px)' }}>
 
       {/* ── Header — always visible at top ── */}
-      <div className={`bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0 ${d ? 'border-slate-200 px-5' : 'border-stone-100'}`}
+      <div className={`bg-white border-b px-4 py-3 flex items-center gap-3 shrink-0 ${d ? 'border-slate-200 px-5' : 'border-slate-200'}`}
            style={d ? undefined : { boxShadow: '0 2px 8px rgba(0,0,0,0.06)' }}>
         {!d && (
-          <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
-            <ChevronLeft size={20} />
+          <button onClick={() => navigate(-1)} aria-label="Back" className="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-slate-700 active:bg-slate-100">
+            <ArrowLeft size={21} />
           </button>
         )}
 
         {/* Avatar + online dot */}
         <div className="relative shrink-0">
-          <div className="w-9 h-9 rounded-full bg-orange-50 overflow-hidden flex items-center justify-center font-bold text-orange-600 text-sm">
+          <div className="w-10 h-10 rounded-full bg-slate-100 overflow-hidden flex items-center justify-center font-semibold text-slate-600 text-sm">
             {partner?.profileImage
               ? <img src={partner.profileImage} alt={partner.name} className="w-full h-full object-cover" />
               : partner?.name?.[0]?.toUpperCase()}
@@ -257,9 +257,9 @@ export default function ChatPage() {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 min-w-0">
-            <span className="font-semibold text-stone-900 text-sm truncate">{partner?.name}</span>
+            <span className="font-semibold text-slate-900 text-[15px] truncate">{partner?.name}</span>
             {partner?.kycStatus === 'verified' && (
-              <span className="text-[9px] bg-emerald-100 text-emerald-700 font-bold px-1.5 py-0.5 rounded-full shrink-0">✓ KYC</span>
+              <BadgeCheck size={15} className="text-emerald-600 shrink-0" aria-label="ID verified" />
             )}
           </div>
           <div className="text-xs mt-0.5 h-4">
@@ -274,48 +274,45 @@ export default function ChatPage() {
                 </span>
               </span>
             ) : isOnline ? (
-              <span className="text-emerald-500 font-medium">● Online</span>
+              <span className="text-emerald-600 font-medium">Online</span>
             ) : activeStatus ? (
-              <span className="text-stone-400">{activeStatus}</span>
+              <span className="text-slate-500">{activeStatus}</span>
             ) : (
-              <span className="text-stone-400 flex items-center gap-1">
-                <Star size={9} className="text-amber-400 fill-amber-400" />{partner?.rating?.toFixed(1)}
+              <span className="text-slate-500 flex items-center gap-1">
+                {partner?.totalRatings > 0 ? <><Star size={11} className="text-amber-400 fill-amber-400" />{partner.rating?.toFixed(1)} ({partner.totalRatings})</> : 'No reviews yet'}
               </span>
             )}
           </div>
         </div>
 
         {reviewableParcel && (
-          <button onClick={() => setShowRating(true)} className="btn-ghost text-xs text-orange-500 font-semibold shrink-0">Rate & Review</button>
+          <button onClick={() => setShowRating(true)} className="h-9 px-3 rounded-lg text-[13px] text-kb-600 font-semibold shrink-0 active:bg-kb-50">Leave a review</button>
         )}
-        <button onClick={() => setShowSafetyMenu(true)} className="btn-ghost p-1.5 shrink-0">
-          <MoreVertical size={18} className="text-stone-400" />
+        <button onClick={() => setShowSafetyMenu(true)} aria-label="Report or block" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100 shrink-0">
+          <MoreVertical size={19} />
         </button>
       </div>
 
       {/* ── Active parcel banner ── */}
       {activeParcel && parcelBannerOpen && (
-        <div className="bg-orange-50 border-b border-orange-100 px-4 py-2.5 flex items-center gap-2.5 shrink-0">
-          <span className="text-base shrink-0">📦</span>
-          <div className="flex-1 min-w-0">
-            <p className="text-xs font-bold text-stone-800 truncate">
-              {activeParcel.fromCity} → {activeParcel.toCity}
+        <div className="bg-white border-b border-slate-200 px-4 py-2.5 flex items-center gap-3 shrink-0">
+          <span className="w-9 h-9 rounded-lg bg-kb-50 text-kb-600 flex items-center justify-center shrink-0"><Package size={17} /></span>
+          <button type="button" onClick={() => navigate('/my-parcels')} className="flex-1 min-w-0 text-left">
+            <p className="text-[13px] font-semibold text-slate-900 truncate">
+              Parcel: {activeParcel.fromCity} → {activeParcel.toCity}
             </p>
-            <p className="text-[10px] text-stone-500 mt-0.5">
-              {activeParcel.weight}kg · {
-                { open:'Awaiting agreement', accepted:'In Progress ⚡', picked:'Picked up 📤',
-                  in_transit:'On the way 🚚', delivered:'Delivered — confirm?', completed:'Completed ✅'
+            <p className="text-xs text-slate-500 mt-0.5 truncate">
+              {activeParcel.weight} kg · {
+                { open: 'Agreeing details', requested: 'Awaiting response', matched: 'Traveller found', accepted: 'Accepted, awaiting pickup', picked: 'Picked up',
+                  in_transit: 'On the way', delivered: 'Delivered, confirm receipt', completed: 'Completed'
                 }[activeParcel.status] || activeParcel.status
               }
               {activeParcel.offeredPrice ? ` · ₹${activeParcel.offeredPrice} agreed` : ''}
             </p>
-          </div>
-          <button onClick={() => navigate('/my-parcels')}
-            className="text-[10px] font-bold text-orange-600 bg-orange-100 px-2.5 py-1 rounded-lg shrink-0 active:scale-95 transition-all">
-            Manage →
           </button>
-          <button onClick={() => setParcelBannerOpen(false)} className="text-stone-300 hover:text-stone-500 shrink-0">
-            <X size={14} />
+          <ChevronRight size={18} className="text-slate-300 shrink-0" />
+          <button onClick={() => setParcelBannerOpen(false)} aria-label="Hide parcel details" className="w-8 h-8 -mr-1 rounded-full flex items-center justify-center text-slate-400 active:bg-slate-100 shrink-0">
+            <X size={15} />
           </button>
         </div>
       )}
@@ -323,7 +320,11 @@ export default function ChatPage() {
       {/* ── Messages — scrollable middle section ── */}
       <div className={`flex-1 overflow-y-auto py-4 space-y-2 ${d ? 'px-6' : 'px-4'}`}>
         {messages.length === 0 && (
-          <div className="text-center text-stone-400 text-sm py-8">Start the conversation! 👋</div>
+          <div className="text-center py-10 px-6">
+            <span className="w-12 h-12 rounded-full bg-white border border-slate-200 text-slate-500 inline-flex items-center justify-center"><ShieldCheck size={20} /></span>
+            <p className="mt-3 text-[15px] font-semibold text-slate-900">Say hello</p>
+            <p className="mt-1 text-[13px] text-slate-500 leading-relaxed">Agree the pickup point, timing and price here, so there’s a record of what you decided.</p>
+          </div>
         )}
 
         {messages.map((msg, i) => {
@@ -352,17 +353,17 @@ export default function ChatPage() {
               {/* Date separator */}
               {showDateSep && (
                 <div className="flex items-center gap-3 my-4">
-                  <div className="flex-1 h-px bg-stone-100" />
-                  <span className="text-[11px] font-semibold text-stone-400 bg-stone-50 px-3 py-1 rounded-full border border-stone-100 shrink-0">
+                  <div className="flex-1 h-px bg-slate-200" />
+                  <span className="text-[11px] font-semibold text-slate-500 shrink-0">
                     {dateSepLabel}
                   </span>
-                  <div className="flex-1 h-px bg-stone-100" />
+                  <div className="flex-1 h-px bg-slate-200" />
                 </div>
               )}
               <div className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
                 {isOffer ? (
-                  <div className={`max-w-[78%] rounded-2xl border-2 border-orange-300 bg-orange-50 px-4 py-3 space-y-2 ${mine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
-                    <div className="flex items-center gap-1.5 font-bold text-orange-600 text-sm">
+                  <div className={`max-w-[78%] rounded-2xl border border-kb-200 bg-kb-50 px-4 py-3 space-y-2 ${mine ? 'rounded-br-sm' : 'rounded-bl-sm'}`}>
+                    <div className="flex items-center gap-1.5 font-semibold text-kb-700 text-[15px]">
                       <IndianRupee size={14} />Offer: ₹{msg.amount}
                     </div>
                     {!mine && (
@@ -373,11 +374,11 @@ export default function ChatPage() {
                       ) : (
                         <div className="flex gap-2">
                           <button onClick={() => acceptOffer(msg.amount, msg._id)}
-                            className="flex-1 flex items-center justify-center gap-1 bg-emerald-500 text-white text-xs font-semibold py-1.5 rounded-lg">
+                            className="flex-1 flex items-center justify-center gap-1 bg-emerald-600 active:bg-emerald-700 text-white text-[13px] font-semibold h-9 rounded-lg">
                             <Check size={12} /> Accept
                           </button>
                           <button onClick={() => { setOfferAmount(String(msg.amount)); setShowOfferPanel(true); }}
-                            className="flex-1 bg-stone-100 text-stone-600 text-xs font-semibold py-1.5 rounded-lg">
+                            className="flex-1 bg-white border border-slate-200 text-slate-700 text-[13px] font-semibold h-9 rounded-lg">
                             Counter
                           </button>
                         </div>
@@ -405,8 +406,8 @@ export default function ChatPage() {
                     )}
                   </div>
                 ) : (
-                  <div className={`${d ? 'max-w-[62%] whitespace-pre-wrap break-words' : 'max-w-[78%]'} px-3.5 py-2.5 rounded-2xl text-sm leading-relaxed
-                    ${mine ? 'bg-orange-500 text-white rounded-br-sm' : 'bg-white text-stone-900 rounded-bl-sm shadow-sm border border-stone-100'}`}>
+                  <div className={`${d ? 'max-w-[62%] whitespace-pre-wrap break-words' : 'max-w-[78%]'} px-3.5 py-2.5 rounded-2xl text-[15px] leading-relaxed
+                    ${mine ? 'bg-kb-500 text-white rounded-br-md' : 'bg-white text-slate-900 rounded-bl-md border border-slate-200'}`}>
                     {msg.text}
                   </div>
                 )}
@@ -414,12 +415,12 @@ export default function ChatPage() {
               {/* Timestamp + read status under message */}
               {(showTimeBubble || i === messages.length - 1) && (
                 <div className={`flex items-center gap-1 mt-0.5 ${mine ? 'justify-end pr-1' : 'justify-start pl-1'}`}>
-                  <span className="text-[10px] text-stone-400">{msgTime}</span>
+                  <span className="text-[11px] text-slate-400">{msgTime}</span>
                   {mine && !msg.sending && (
-                    <span className="text-[10px] text-stone-400 font-bold">✓✓</span>
+                    <span className="text-[11px] text-slate-400">Sent</span>
                   )}
                   {mine && msg.sending && (
-                    <span className="text-[10px] text-stone-300">✓</span>
+                    <span className="text-[11px] text-slate-300">Sending…</span>
                   )}
                 </div>
               )}
@@ -430,7 +431,7 @@ export default function ChatPage() {
         {/* Partner typing bubble */}
         {partnerTyping && (
           <div className="flex justify-start animate-fade-in">
-            <div className="bg-white border border-stone-100 rounded-2xl rounded-bl-sm px-4 py-3 shadow-sm flex items-center gap-1">
+            <div className="bg-white border border-slate-200 rounded-2xl rounded-bl-md px-4 py-3 flex items-center gap-1">
               {[0,1,2].map(i => (
                 <span key={i} className="w-2 h-2 bg-stone-400 rounded-full"
                   style={{ animation: `bounce 0.9s ease-in-out ${i*0.2}s infinite` }} />
@@ -444,32 +445,32 @@ export default function ChatPage() {
 
       {/* ── Offer panel ── */}
       {showOfferPanel && (
-        <div className="bg-white border-t border-stone-100 px-4 py-3 flex gap-2 items-center shrink-0 animate-slide-up">
-          <div className="flex items-center gap-1.5 flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-2">
-            <span className="text-stone-400 text-sm font-semibold">₹</span>
-            <input className="flex-1 bg-transparent outline-none text-sm font-semibold text-stone-900"
+        <div className="bg-white border-t border-slate-200 px-4 py-3 flex gap-2 items-center shrink-0 animate-slide-up">
+          <div className="flex items-center gap-1.5 flex-1 h-11 bg-white border border-slate-200 focus-within:border-kb-500 rounded-xl px-3">
+            <span className="text-slate-400 text-[15px] font-semibold">₹</span>
+            <input className="flex-1 bg-transparent outline-none text-[15px] font-semibold text-slate-900"
               placeholder="Amount" type="number" min="1"
               value={offerAmount} onChange={e => setOfferAmount(e.target.value)} autoFocus />
           </div>
-          <button onClick={sendOffer} disabled={sendingOffer} className="btn-primary py-2 px-4 text-sm">
-            {sendingOffer ? '…' : 'Send Offer'}
+          <button onClick={sendOffer} disabled={sendingOffer} className="h-11 px-4 rounded-xl bg-kb-500 active:bg-kb-600 text-white text-[14px] font-semibold disabled:opacity-50">
+            {sendingOffer ? 'Sending…' : 'Send offer'}
           </button>
-          <button onClick={() => { setShowOfferPanel(false); setOfferAmount(''); }} className="btn-ghost p-2">
-            <X size={16} />
+          <button onClick={() => { setShowOfferPanel(false); setOfferAmount(''); }} aria-label="Cancel offer" className="w-10 h-10 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100">
+            <X size={18} />
           </button>
         </div>
       )}
 
       {/* ── Quick messages ── */}
-      <div className="bg-white border-t border-stone-50 px-3 pt-2 pb-0 overflow-x-auto shrink-0"
+      <div className="bg-white border-t border-slate-100 px-3 pt-2 pb-0 overflow-x-auto shrink-0"
         style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 pb-2">
-          {['Deal! ✅', 'When can you pick up?', 'Thank you 🙏', 'Handle with care 📦',
-            'What\'s your ETA?', 'Meet at station?', 'Is it fragile?', 'Payment on delivery?'
+          {['Deal', 'When can you pick up?', 'Thank you', 'Please handle with care',
+            'What\'s your ETA?', 'Meet at the station?', 'Is it fragile?', 'Payment on delivery?'
           ].map(msg => (
             <button key={msg} onMouseDown={e => e.preventDefault()}
               onClick={() => sendMessage(msg)}
-              className="shrink-0 px-3 py-1.5 bg-stone-100 hover:bg-orange-50 hover:text-orange-600 text-stone-600 rounded-full text-xs font-medium transition-colors active:scale-95 border border-stone-200 whitespace-nowrap">
+              className="shrink-0 h-8 px-3 bg-white hover:bg-slate-50 active:bg-slate-100 text-slate-700 rounded-full text-[13px] font-medium transition-colors border border-slate-200 whitespace-nowrap">
               {msg}
             </button>
           ))}
@@ -477,20 +478,20 @@ export default function ChatPage() {
       </div>
 
       {/* ── Input bar — always pinned at bottom ── */}
-      <div className="bg-white border-t border-stone-100 px-3 py-3 flex gap-2 items-end shrink-0">
+      <div className="bg-white px-3 py-2.5 flex gap-2 items-end shrink-0">
         {/* Offer button */}
         <button onClick={() => setShowOfferPanel(v => !v)}
-          className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all shrink-0 border ${
-            showOfferPanel ? 'bg-orange-500 text-white border-orange-500' : 'bg-stone-50 text-stone-500 border-stone-200'
-          }`} title="Make an offer">
+          className={`w-11 h-11 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+            showOfferPanel ? 'bg-kb-500 text-white' : 'text-slate-500 active:bg-slate-100 hover:bg-slate-100'
+          }`} title="Make an offer" aria-label="Make an offer">
           <IndianRupee size={15} />
         </button>
 
         {/* Image button */}
         <button onClick={() => imageInputRef.current?.click()}
           disabled={sendingImage}
-          className="w-9 h-9 rounded-xl bg-stone-50 border border-stone-200 flex items-center justify-center text-stone-500 hover:bg-stone-100 transition-all shrink-0 disabled:opacity-50"
-          title="Send image">
+          className="w-11 h-11 rounded-full flex items-center justify-center text-slate-500 active:bg-slate-100 hover:bg-slate-100 transition-colors shrink-0 disabled:opacity-50"
+          title="Send photo" aria-label="Send photo">
           {sendingImage ? (
             <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
               <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
@@ -502,8 +503,8 @@ export default function ChatPage() {
 
         {/* Text input */}
         <textarea
-          className="flex-1 bg-stone-50 border border-stone-200 focus:border-orange-400 focus:ring-2 focus:ring-orange-100 rounded-xl px-3 py-2.5 text-sm resize-none outline-none max-h-24 transition-all"
-          placeholder="Type a message..."
+          className="flex-1 min-h-[44px] bg-slate-100 border border-transparent focus:bg-white focus:border-kb-500 rounded-3xl px-4 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-500 resize-none outline-none max-h-28 transition-colors"
+          placeholder="Message"
           rows={1}
           value={text}
           onChange={e => { setText(e.target.value); emitTyping(); }}
@@ -512,8 +513,9 @@ export default function ChatPage() {
 
         {/* Send button */}
         <button onClick={() => sendMessage()} disabled={!text.trim()}
-          className="w-9 h-9 rounded-xl bg-orange-500 hover:bg-orange-600 disabled:opacity-40 text-white flex items-center justify-center transition-all active:scale-95 shrink-0">
-          <Send size={15} />
+          aria-label="Send message"
+          className="w-11 h-11 rounded-full bg-kb-500 hover:bg-kb-600 active:bg-kb-600 disabled:bg-slate-200 disabled:text-slate-400 text-white flex items-center justify-center transition-colors shrink-0">
+          <Send size={18} />
         </button>
       </div>
 

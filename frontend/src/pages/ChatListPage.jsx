@@ -1,95 +1,96 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { formatDistanceToNowStrict } from "date-fns";
+import { MessageCircle, BadgeCheck } from "lucide-react";
 import api from "../lib/api";
-import { formatDistanceToNow } from "date-fns";
-import { MessageCircle, Star } from "lucide-react";
+import { getSocket } from "../lib/socket";
 import { useDesktopWeb } from "../hooks/useDesktopWeb";
 import MessagesLayout from "../components/desktop/MessagesLayout";
+import { Avatar, EmptyState } from "../components/desktop/ui";
+import { ScreenHeader, ErrorState } from "../components/mobile/ui";
+import { m } from "../components/mobile/styles";
+
+const preview = (msg) => {
+  if (!msg) return "";
+  if (msg.type === "image") return "Photo";
+  if (msg.type === "offer") return `Offer: ₹${msg.amount}`;
+  return msg.text || "";
+};
 
 export default function ChatListPage() {
-  const [conversations, setConversations] = useState([]);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const isDesktopWeb = useDesktopWeb();
+  const [conversations, setConversations] = useState([]);
+  const [state, setState] = useState("loading"); // loading | ready | error
+
+  const load = useCallback(() => api.get("/chat/conversations")
+    .then(r => { setConversations(r.data.conversations || []); setState("ready"); })
+    .catch(() => setState("error")), []);
 
   useEffect(() => {
-    api.get("/chat/conversations")
-      .then(r => setConversations(r.data.conversations))
-      .finally(() => setLoading(false));
-  }, []);
+    if (isDesktopWeb) return undefined; // the desktop shell loads its own list
+    load();
+    const socket = getSocket();
+    socket.on("receive_message", load);
+    return () => socket.off("receive_message", load);
+  }, [isDesktopWeb, load]);
 
   // Desktop browsers: two-pane messages view (the Android app never takes this branch)
   if (isDesktopWeb) return <MessagesLayout />;
 
-  if (loading) return (
-    <div className="px-4 py-5 space-y-3">
-      <div className="h-6 w-24 bg-stone-100 rounded animate-pulse mb-4" />
-      {[1,2,3].map(i => (
-        <div key={i} className="card p-4 flex gap-3 animate-pulse">
-          <div className="w-11 h-11 rounded-full bg-stone-100 shrink-0" />
-          <div className="flex-1 space-y-2">
-            <div className="h-4 bg-stone-100 rounded w-1/3" />
-            <div className="h-3 bg-stone-100 rounded w-2/3" />
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+  const list = conversations.filter(c => c.partner);
 
   return (
-    <div className="px-4 py-5">
-      <h1 className="text-xl font-bold text-stone-900 mb-4">Messages</h1>
-
-      {conversations.length === 0 ? (
-        <div className="card p-10 text-center">
-          <MessageCircle size={32} className="text-stone-300 mx-auto mb-3" />
-          <p className="text-stone-500 text-sm">No conversations yet.</p>
-          <p className="text-stone-400 text-xs mt-1">Find a match to start chatting!</p>
+    <div className="px-4 pt-1 pb-4">
+      <ScreenHeader title="Messages" />
+      {state === "loading" ? (
+        <div className={`${m.card} divide-y divide-slate-100`}>
+          {[0, 1, 2, 3].map(i => (
+            <div key={i} className="flex items-center gap-3 p-4">
+              <div className="w-12 h-12 rounded-full bg-slate-100 animate-pulse" />
+              <div className="flex-1 space-y-2"><div className="h-3 w-1/3 bg-slate-100 rounded animate-pulse" /><div className="h-3 w-2/3 bg-slate-100 rounded animate-pulse" /></div>
+            </div>
+          ))}
+        </div>
+      ) : state === "error" ? (
+        <div className={m.card}><ErrorState onRetry={() => { setState("loading"); load(); }} /></div>
+      ) : list.length === 0 ? (
+        <div className={m.card}>
+          <EmptyState icon={MessageCircle} title="No messages yet"
+            body="Message a traveller or sender from a trip or parcel to start a conversation."
+            actionLabel="Explore trips" onAction={() => navigate("/explore")} />
         </div>
       ) : (
-        <div className="space-y-2">
-          {conversations.map(({ partner, lastMessage, unreadCount }) => (
-            <button
-              key={partner._id}
-              onClick={() => navigate(`/chat/${partner._id}`)}
-              className="card w-full p-3 flex items-center gap-3 text-left hover:border-orange-100 active:scale-[0.99] transition-all"
-            >
-              <Avatar name={partner.name} />
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between">
-                  <span className="font-semibold text-stone-900 text-sm">{partner.name}</span>
-                  <span className="text-[11px] text-stone-400">
-                    {formatDistanceToNow(new Date(lastMessage.timestamp), { addSuffix: true })}
+        <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>
+          {list.map(({ partner, lastMessage, unreadCount }) => (
+            <button key={partner._id} type="button" onClick={() => navigate(`/chat/${partner._id}`)}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left ${m.press}`}>
+              <Avatar user={partner} size={48} />
+              <span className="flex-1 min-w-0">
+                <span className="flex items-center justify-between gap-2">
+                  <span className="flex items-center gap-1.5 min-w-0">
+                    <span className={`text-[15px] truncate ${unreadCount > 0 ? "font-semibold text-slate-900" : "font-medium text-slate-800"}`}>{partner.name}</span>
+                    {partner.kycStatus === "verified" && <BadgeCheck size={15} className="text-emerald-600 shrink-0" aria-label="ID verified" />}
                   </span>
-                </div>
-                <div className="flex items-center justify-between mt-0.5">
-                  <p className="text-xs text-stone-500 truncate max-w-[200px]">{lastMessage.text}</p>
-                  {unreadCount > 0 && (
-                    <span className="bg-orange-500 text-white text-[10px] font-bold rounded-full w-4 h-4 flex items-center justify-center shrink-0 ml-2">
-                      {unreadCount}
+                  {lastMessage?.timestamp && (
+                    <span className={`text-xs shrink-0 ${unreadCount > 0 ? "text-kb-600 font-semibold" : "text-slate-400"}`}>
+                      {formatDistanceToNowStrict(new Date(lastMessage.timestamp))}
                     </span>
                   )}
-                </div>
-                <div className="flex items-center gap-1 mt-0.5">
-                  <Star size={10} className="text-amber-400 fill-amber-400" />
-                  <span className="text-[11px] text-stone-400">{partner.rating?.toFixed(1)}</span>
-                </div>
-              </div>
+                </span>
+                <span className="flex items-center justify-between gap-2 mt-0.5">
+                  <span className={`text-[14px] truncate ${unreadCount > 0 ? "text-slate-800" : "text-slate-500"}`}>{preview(lastMessage)}</span>
+                  {unreadCount > 0 && (
+                    <span className="min-w-[20px] h-5 px-1.5 rounded-full bg-kb-500 text-white text-[11px] font-bold leading-5 text-center shrink-0">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  )}
+                </span>
+              </span>
             </button>
           ))}
         </div>
       )}
-    </div>
-  );
-}
-
-function Avatar({ name }) {
-  const initials = name?.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase() || "?";
-  const colors = ["bg-orange-100 text-orange-600", "bg-blue-100 text-blue-600", "bg-emerald-100 text-emerald-600", "bg-purple-100 text-purple-600"];
-  const color = colors[name?.charCodeAt(0) % colors.length] || colors[0];
-  return (
-    <div className={`w-11 h-11 rounded-full flex items-center justify-center font-bold text-sm shrink-0 ${color}`}>
-      {initials}
     </div>
   );
 }

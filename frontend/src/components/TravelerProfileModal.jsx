@@ -1,16 +1,19 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
-import { X, Star, MessageCircle, Package, CheckCircle, Shield, Clock, MoreVertical } from 'lucide-react';
+import { Star, MessageCircle, CheckCircle2, Shield, Clock, MoreVertical } from 'lucide-react';
 import { format } from 'date-fns';
 import ReportBlockSheet from './ReportBlockSheet';
 import { useAuth } from '../context/AuthContext';
+import { Sheet } from './mobile/ui';
+import { m } from './mobile/styles';
+import { Avatar } from './desktop/ui';
 
 const KYC_BADGE = {
-  verified: { label: 'KYC Verified', cls: 'bg-emerald-50 text-emerald-600', icon: <CheckCircle size={11} /> },
-  pending:  { label: 'Under Review', cls: 'bg-amber-50 text-amber-600',    icon: <Clock size={11} /> },
-  none:     { label: 'Unverified',   cls: 'bg-stone-100 text-stone-500',   icon: <Shield size={11} /> },
-  rejected: { label: 'Unverified',   cls: 'bg-stone-100 text-stone-500',   icon: <Shield size={11} /> },
+  verified: { label: 'ID verified',          cls: 'bg-emerald-50 text-emerald-700', Icon: CheckCircle2 },
+  pending:  { label: 'Verification pending', cls: 'bg-amber-50 text-amber-700',     Icon: Clock },
+  none:     { label: 'Not verified',         cls: 'bg-slate-100 text-slate-600',    Icon: Shield },
+  rejected: { label: 'Not verified',         cls: 'bg-slate-100 text-slate-600',    Icon: Shield },
 };
 
 export default function TravelerProfileModal({ travelerId, travelerSnap, onClose, onChat }) {
@@ -30,7 +33,9 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
 
   const data = profile || travelerSnap;
   const badge = KYC_BADGE[data?.kycStatus || 'none'];
-  const initials = data?.name?.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
+  const BadgeIcon = badge.Icon;
+  const hasReviews = (data?.totalRatings || 0) > 0;
+  const firstName = data?.name?.split(' ')[0] || 'them';
 
   const handleChat = () => {
     onClose();
@@ -40,163 +45,84 @@ export default function TravelerProfileModal({ travelerId, travelerSnap, onClose
 
   return (
     <>
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal-content">
-        {/* Header */}
-        <div className="flex items-center justify-between px-5 pt-5 pb-4 border-b border-stone-100">
-          <h2 className="font-bold text-stone-900">Traveler Profile</h2>
-          <div className="flex items-center gap-1">
-            {me && me._id !== travelerId && (
-              <button onClick={() => setShowSheet(true)}
-                className="btn-ghost p-1.5">
-                <MoreVertical size={18} className="text-stone-500" />
-              </button>
-            )}
-            <button onClick={onClose} className="btn-ghost p-1.5 -mr-1.5"><X size={18} /></button>
+      <Sheet title="Profile" onClose={onClose}
+        headerLeft={null}
+        footer={me?._id !== travelerId ? (
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setShowSheet(true)} aria-label="Report or block"
+              className={`${m.btnSecondary} w-12 px-0`}><MoreVertical size={18} /></button>
+            <button type="button" onClick={handleChat} className={`${m.btnPrimary} flex-1`}><MessageCircle size={18} /> Message {firstName}</button>
           </div>
-        </div>
-
-        <div className="px-5 py-5 space-y-5">
-          {loading ? (
-            <div className="flex flex-col items-center gap-3 py-4 animate-pulse">
-              <div className="w-20 h-20 rounded-full bg-stone-100" />
-              <div className="h-4 bg-stone-100 rounded w-32" />
-              <div className="h-3 bg-stone-100 rounded w-24" />
+        ) : null}>
+        {loading && !data ? (
+          <div className="flex flex-col items-center gap-3 py-6 animate-pulse">
+            <div className="w-20 h-20 rounded-full bg-slate-100" />
+            <div className="h-4 bg-slate-100 rounded w-32" />
+          </div>
+        ) : (
+          <div className="space-y-5">
+            <div className="flex flex-col items-center text-center">
+              <Avatar user={data} size={84} />
+              <h3 className="mt-3 text-[20px] font-semibold text-slate-900">{data?.name}</h3>
+              <span className={`mt-1.5 inline-flex items-center gap-1 text-[12px] font-semibold px-2 py-1 rounded-md ${badge.cls}`}>
+                <BadgeIcon size={13} /> {badge.label}
+              </span>
+              {data?.createdAt && <p className="text-[13px] text-slate-500 mt-1.5">Joined {format(new Date(data.createdAt), 'MMM yyyy')}</p>}
             </div>
-          ) : (
-            <>
-              {/* Avatar + name */}
-              <div className="flex flex-col items-center gap-2">
-                {/* Avatar with verified badge */}
-                <div className="relative">
-                  <div className={`w-20 h-20 rounded-full overflow-hidden flex items-center justify-center text-2xl font-bold text-orange-500 border-4 ${
-                    data?.kycStatus === 'verified' ? 'border-blue-400 bg-blue-50' : 'border-orange-100 bg-orange-50'
-                  }`}>
-                    {data?.profileImage
-                      ? <img src={data.profileImage} alt={data.name} className="w-full h-full object-cover" />
-                      : initials}
-                  </div>
-                  {/* Blue verified tick */}
-                  {data?.kycStatus === 'verified' && (
-                    <div className="absolute bottom-0.5 right-0.5 w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center border-2 border-white shadow-md">
-                      <svg viewBox="0 0 10 8" width="10" height="8" fill="none">
-                        <path d="M1 4l2.5 2.5L9 1" stroke="white" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
-                    </div>
-                  )}
-                </div>
-                <div className="text-center">
-                  <div className="flex items-center justify-center gap-2">
-                    <h3 className="font-bold text-stone-900 text-lg">{data?.name}</h3>
-                    {data?.kycStatus === 'verified' && (
-                      <span className="text-[10px] font-black text-blue-600 bg-blue-50 border border-blue-200 px-2 py-0.5 rounded-full">
-                        ✓ Verified
-                      </span>
-                    )}
-                  </div>
-                  {data?.createdAt && (
-                    <p className="text-xs text-stone-400">
-                      Member since {format(new Date(data.createdAt), 'MMM yyyy')}
-                    </p>
-                  )}
-                </div>
 
-                {/* KYC badge */}
-                <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${badge.cls}`}>
-                  {badge.icon}
-                  {badge.label}
-                </span>
+            <div className="grid grid-cols-3 border border-slate-200 rounded-2xl divide-x divide-slate-200 text-center">
+              <div className="py-3">
+                <p className="text-[18px] font-semibold text-slate-900 flex items-center justify-center gap-1">
+                  {hasReviews ? <><Star size={15} className="fill-amber-400 text-amber-400" />{Number(data.rating).toFixed(1)}</> : '—'}
+                </p>
+                <p className="text-xs text-slate-500">Rating</p>
               </div>
-
-              {/* Stats row */}
-              <div className="grid grid-cols-3 gap-3">
-                <StatBox
-                  icon={<Star size={16} className="text-amber-400 fill-amber-400" />}
-                  value={data?.rating?.toFixed(1) || '5.0'}
-                  label="Rating"
-                />
-                <StatBox
-                  icon={<span className="text-base">💬</span>}
-                  value={data?.totalRatings || 0}
-                  label="Reviews"
-                />
-                <StatBox
-                  icon={<Package size={16} className="text-emerald-500" />}
-                  value={profile?.deliveredCount ?? data?.tripsCompleted ?? 0}
-                  label="Delivered"
-                />
+              <div className="py-3">
+                <p className="text-[18px] font-semibold text-slate-900">{data?.totalRatings || 0}</p>
+                <p className="text-xs text-slate-500">Reviews</p>
               </div>
-
-              {/* Star visual */}
-              <div className="flex items-center justify-center gap-1">
-                {[1, 2, 3, 4, 5].map(s => (
-                  <Star
-                    key={s}
-                    size={18}
-                    className={s <= Math.round(data?.rating || 5) ? 'text-amber-400 fill-amber-400' : 'text-stone-200 fill-stone-200'}
-                  />
-                ))}
-                <span className="text-sm text-stone-500 ml-1">
-                  {data?.rating?.toFixed(1)} · {data?.totalRatings || 0} review{data?.totalRatings !== 1 ? 's' : ''}
-                </span>
+              <div className="py-3">
+                <p className="text-[18px] font-semibold text-slate-900">{profile?.deliveredCount ?? data?.tripsCompleted ?? 0}</p>
+                <p className="text-xs text-slate-500">Deliveries</p>
               </div>
+            </div>
 
-              {/* Written reviews from completed deliveries */}
-              {profile?.reviews?.length > 0 && (
+            <section>
+              <h4 className="text-[15px] font-semibold text-slate-900 mb-2">Reviews</h4>
+              {profile?.reviews?.length > 0 ? (
                 <div className="space-y-2.5">
-                  <p className="text-[10px] font-black text-stone-400 uppercase tracking-wide">What people say</p>
                   {profile.reviews.map((r, i) => (
-                    <div key={i} className="bg-stone-50 border border-stone-100 rounded-xl p-3">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-stone-800">{r.from?.name || 'Kabutar user'}</span>
-                        <span className="flex items-center gap-0.5">
-                          {[1,2,3,4,5].map(s => (
-                            <Star key={s} size={10} className={s <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-stone-200 fill-stone-200'} />
+                    <div key={i} className="border border-slate-200 rounded-xl p-3.5">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[13px] font-semibold text-slate-900">{r.from?.name || 'Kabutar user'}</span>
+                        <span className="flex items-center gap-0.5" aria-label={`${r.rating} out of 5`}>
+                          {[1, 2, 3, 4, 5].map(s => (
+                            <Star key={s} size={11} className={s <= r.rating ? 'text-amber-400 fill-amber-400' : 'text-slate-200 fill-slate-200'} />
                           ))}
                         </span>
-                        <span className="text-[10px] text-stone-400 ml-auto">{format(new Date(r.createdAt), 'dd MMM yyyy')}</span>
+                        {r.createdAt && <span className="text-xs text-slate-400 ml-auto">{format(new Date(r.createdAt), 'd MMM yyyy')}</span>}
                       </div>
-                      <p className="text-xs text-stone-600 leading-relaxed">"{r.comment}"</p>
+                      {r.comment && <p className="text-[14px] text-slate-600 mt-1.5 leading-relaxed">{r.comment}</p>}
                     </div>
                   ))}
                 </div>
+              ) : (
+                <p className="text-[14px] text-slate-500">No reviews yet. Reviews appear after completed deliveries.</p>
               )}
-            </>
-          )}
+            </section>
+          </div>
+        )}
+      </Sheet>
 
-          {/* Chat button */}
-          <button
-            onClick={handleChat}
-            className="btn-primary w-full flex items-center justify-center gap-2"
-          >
-            <MessageCircle size={16} />
-            Chat with {data?.name?.split(' ')[0] || 'Traveler'}
-          </button>
-        </div>
-      </div>
-    </div>
-
-    {showSheet && (
-      <ReportBlockSheet
-        userId={travelerId}
-        userName={data?.name?.split(' ')[0] || 'this user'}
-        isBlocked={isBlocked}
-        onBlock={setIsBlocked}
-        onClose={() => setShowSheet(false)}
-      />
-    )}
+      {showSheet && (
+        <ReportBlockSheet
+          userId={travelerId}
+          userName={data?.name?.split(' ')[0] || 'this user'}
+          isBlocked={isBlocked}
+          onBlock={setIsBlocked}
+          onClose={() => setShowSheet(false)}
+        />
+      )}
     </>
-  );
-}
-
-function StatBox({ icon, value, label }) {
-  return (
-    <div className="card p-3 text-center">
-      <div className="flex items-center justify-center gap-1 mb-0.5">
-        {icon}
-        <span className="font-bold text-stone-900 text-base">{value}</span>
-      </div>
-      <div className="text-[11px] text-stone-400">{label}</div>
-    </div>
   );
 }

@@ -3,15 +3,16 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
-import { ChevronLeft, Upload, Camera, CheckCircle, Clock, XCircle, Shield, RotateCcw } from 'lucide-react';
+import { Upload, Camera, CheckCircle2, Clock, XCircle, Shield, RotateCcw, IdCard, Lock } from 'lucide-react';
 import { format } from 'date-fns';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader } from '../components/desktop/ui';
 import { btn } from '../components/desktop/styles';
-import { IdCard } from 'lucide-react';
+import { ScreenHeader, StepProgress } from '../components/mobile/ui';
+import { m } from '../components/mobile/styles';
 
-// Steps: 1=ID Front  2=ID Back  3=Selfie  4=Done
-const STEPS = ['ID Front', 'ID Back', 'Selfie', 'Done'];
+// Steps: 1=ID front  2=ID back  3=Selfie  4=Done
+const STEPS = ['ID front', 'ID back', 'Selfie', 'Submitted'];
 
 export default function KYCPage() {
   const navigate  = useNavigate();
@@ -21,7 +22,7 @@ export default function KYCPage() {
   const [step,     setStep]     = useState(1);
   const [uploading,setUploading]= useState(false);
 
-  // Previews for each uploaded file
+  // Previews for each uploaded file (shown only to the user during upload)
   const [frontPreview, setFrontPreview] = useState(null);
   const [backPreview,  setBackPreview]  = useState(null);
   const [selfiePreview,setSelfiePreview]= useState(null);
@@ -53,145 +54,111 @@ export default function KYCPage() {
 
   const uploadFront = (file) => doUpload(
     file, 'kyc-documents', '/kyc/upload', 'documentUrl',
-    (url) => { setFrontPreview(url); toast.success('Front uploaded ✓'); setStep(2); }
+    (url) => { setFrontPreview(url); toast.success('Front of ID uploaded'); setStep(2); }
   );
 
   const uploadBack = (file) => doUpload(
     file, 'kyc-documents', '/kyc/upload', 'documentBackUrl',
-    (url) => { setBackPreview(url); toast.success('Back uploaded ✓'); setStep(3); }
+    (url) => { setBackPreview(url); toast.success('Back of ID uploaded'); setStep(3); }
   );
 
   const uploadSelfie = (file) => doUpload(
     file, 'kyc-selfies', '/kyc/selfie', 'selfieUrl',
     (url) => {
       setSelfiePreview(url);
-      toast.success('Selfie uploaded ✓');
+      toast.success('Selfie uploaded');
       setStep(4);
       setStatus(s => ({ ...s, kycStatus: 'pending', kycSubmittedAt: new Date().toISOString() }));
     }
   );
 
   if (loading) return (
-    <div className="px-4 py-5 animate-pulse space-y-3">
-      <div className="h-6 bg-stone-100 rounded w-1/2" />
-      <div className="h-32 bg-stone-100 rounded-2xl" />
+    <div className={isDesktopWeb ? 'space-y-4' : 'px-4 pt-5 space-y-3'}>
+      <div className="h-7 w-1/2 bg-slate-100 rounded-lg animate-pulse" />
+      <div className="h-24 bg-white border border-slate-200 rounded-2xl animate-pulse" />
+      <div className="h-64 bg-white border border-slate-200 rounded-2xl animate-pulse" />
     </div>
   );
 
   const kycStatus = status?.kycStatus || 'none';
 
   const wizard = kycStatus !== 'verified' && (
-        <div className="card p-5 space-y-5">
+    <div className={`${m.card} p-4 sm:p-5 space-y-5`}>
+      <StepProgress steps={STEPS} current={step - 1} />
 
-          {/* Step progress */}
-          <div className="flex items-center gap-1">
-            {STEPS.map((label, idx) => {
-              const s = idx + 1;
-              const done = step > s;
-              const active = step === s;
-              return (
-                <div key={s} className="flex items-center gap-1 flex-1 last:flex-none">
-                  <div className={`w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 border-2 transition-all ${
-                    done   ? 'bg-emerald-500 border-emerald-500 text-white' :
-                    active ? 'bg-orange-500 border-orange-500 text-white' :
-                             'border-stone-200 text-stone-400'
-                  }`}>
-                    {done ? '✓' : s}
-                  </div>
-                  {s < STEPS.length && (
-                    <div className={`flex-1 h-0.5 ${done ? 'bg-emerald-300' : 'bg-stone-100'}`} />
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p className="text-xs text-stone-400 text-center -mt-2">
-            Step {step} of {STEPS.length} — {STEPS[step - 1]}
-          </p>
+      {step === 1 && (
+        <UploadStep
+          title="Front of your ID"
+          subtitle="Aadhaar, PAN, passport or driving licence"
+          hint="Make sure your name and photo are clearly visible."
+          preview={frontPreview}
+          uploading={uploading}
+          accept="image/*,application/pdf"
+          icon={Upload}
+          onFile={uploadFront}
+          onRetake={() => setFrontPreview(null)}
+        />
+      )}
 
-          {/* ── Step 1: ID Front ── */}
-          {step === 1 && (
-            <UploadStep
-              title="Upload ID Document — Front"
-              subtitle="Aadhaar · PAN · Passport · Driving Licence"
-              hint="Clear photo of the front side with your name and photo visible"
-              preview={frontPreview}
-              uploading={uploading}
-              accept="image/*,application/pdf"
-              icon={<Upload size={28} className="text-orange-400" />}
-              color="orange"
-              onFile={uploadFront}
-              onRetake={() => setFrontPreview(null)}
-            />
-          )}
-
-          {/* ── Step 2: ID Back ── */}
-          {step === 2 && (
-            <div className="space-y-4">
-              <UploadStep
-                title="Upload ID Document — Back"
-                subtitle="Clear photo of the back side"
-                hint="Required for Aadhaar. For PAN/Passport you can skip."
-                preview={backPreview}
-                uploading={uploading}
-                accept="image/*,application/pdf"
-                icon={<RotateCcw size={28} className="text-violet-400" />}
-                color="violet"
-                onFile={uploadBack}
-                onRetake={() => setBackPreview(null)}
-              />
-              <button onClick={() => setStep(3)}
-                className="w-full py-2.5 rounded-xl border border-stone-200 text-sm text-stone-500 font-medium active:scale-95 transition-all hover:bg-stone-50">
-                Skip — not applicable for my document
-              </button>
-              <button onClick={() => setStep(1)} className="btn-ghost w-full text-sm text-stone-400">
-                ← Back
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 3: Selfie ── */}
-          {step === 3 && (
-            <div className="space-y-4">
-              <UploadStep
-                title="Take a Live Selfie"
-                subtitle="Face clearly visible · good lighting · no glasses"
-                hint="Must match your ID document photo"
-                preview={selfiePreview}
-                uploading={uploading}
-                accept="image/*"
-                capture="user"
-                icon={<Camera size={28} className="text-blue-400" />}
-                color="blue"
-                onFile={uploadSelfie}
-                onRetake={() => setSelfiePreview(null)}
-              />
-              <button onClick={() => setStep(2)} className="btn-ghost w-full text-sm text-stone-400">
-                ← Back
-              </button>
-            </div>
-          )}
-
-          {/* ── Step 4: Done ── */}
-          {step === 4 && (
-            <div className="text-center space-y-3 py-4">
-              <div className="text-5xl">🎉</div>
-              <h3 className="font-black text-stone-900">Documents Submitted!</h3>
-              <p className="text-sm text-stone-500 leading-relaxed">
-                We'll verify your identity within 24 hours.<br />
-                You'll be notified once approved.
-              </p>
-              {/* Preview summary */}
-              <div className="flex justify-center gap-2 mt-2">
-                {frontPreview  && <PreviewThumb src={frontPreview}  label="Front" />}
-                {backPreview   && <PreviewThumb src={backPreview}   label="Back"  />}
-                {selfiePreview && <PreviewThumb src={selfiePreview} label="Selfie"/>}
-              </div>
-              <button onClick={() => navigate(-1)} className="btn-primary w-full mt-2">Done</button>
-            </div>
-          )}
+      {step === 2 && (
+        <div className="space-y-3">
+          <UploadStep
+            title="Back of your ID"
+            subtitle="Required for Aadhaar"
+            hint="PAN and passport holders can skip this step."
+            preview={backPreview}
+            uploading={uploading}
+            accept="image/*,application/pdf"
+            icon={RotateCcw}
+            onFile={uploadBack}
+            onRetake={() => setBackPreview(null)}
+          />
+          <button onClick={() => setStep(3)} className={`${m.btnSecondary} w-full`}>
+            Skip, my ID has no back side
+          </button>
+          <button onClick={() => setStep(1)} className="w-full h-10 text-[14px] font-semibold text-slate-500">Back</button>
         </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-3">
+          <UploadStep
+            title="Take a selfie"
+            subtitle="Face the camera in good light, without sunglasses"
+            hint="This must match the photo on your ID."
+            preview={selfiePreview}
+            uploading={uploading}
+            accept="image/*"
+            capture="user"
+            icon={Camera}
+            onFile={uploadSelfie}
+            onRetake={() => setSelfiePreview(null)}
+          />
+          <button onClick={() => setStep(2)} className="w-full h-10 text-[14px] font-semibold text-slate-500">Back</button>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="text-center py-4">
+          <span className="w-14 h-14 rounded-full bg-emerald-50 text-emerald-600 inline-flex items-center justify-center"><CheckCircle2 size={28} /></span>
+          <h3 className="mt-3 text-lg font-semibold text-slate-900">Documents submitted</h3>
+          <p className="mt-1 text-[14px] text-slate-500 leading-relaxed">
+            The Kabutar team will review them. You’ll get an alert as soon as you’re verified.
+          </p>
+          <button onClick={() => navigate(-1)} className={`${m.btnPrimary} w-full mt-5`}>Done</button>
+        </div>
+      )}
+    </div>
   );
+
+  const needs = (
+    <ul className="space-y-3 text-[14px] text-slate-600">
+      <li className="flex gap-3"><IdCard size={18} className="text-slate-400 shrink-0 mt-0.5" /> A government ID: Aadhaar, PAN, passport or driving licence</li>
+      <li className="flex gap-3"><RotateCcw size={18} className="text-slate-400 shrink-0 mt-0.5" /> The back of the ID, if it has one (required for Aadhaar)</li>
+      <li className="flex gap-3"><Camera size={18} className="text-slate-400 shrink-0 mt-0.5" /> A clear selfie that matches your ID photo</li>
+    </ul>
+  );
+  const privacy = 'Documents are reviewed by the Kabutar team and are never shown on your public profile.';
 
   // ── Desktop browser layout (never used by the Android app) ──
   if (isDesktopWeb) {
@@ -215,21 +182,15 @@ export default function KYCPage() {
           </div>
           <aside className="space-y-5 sticky top-24">
             <Card className="p-5">
-              <h3 className="text-sm font-semibold text-slate-900">What you'll need</h3>
-              <ul className="mt-3 space-y-2.5 text-[13px] text-slate-600">
-                <li className="flex gap-2.5"><IdCard size={16} className="text-slate-400 shrink-0 mt-0.5" /> A government ID: Aadhaar, PAN, passport or driving licence</li>
-                <li className="flex gap-2.5"><RotateCcw size={16} className="text-slate-400 shrink-0 mt-0.5" /> The back of the ID, if it has one (required for Aadhaar)</li>
-                <li className="flex gap-2.5"><Camera size={16} className="text-slate-400 shrink-0 mt-0.5" /> A clear selfie that matches your ID photo</li>
-              </ul>
+              <h3 className="text-sm font-semibold text-slate-900 mb-3">What you'll need</h3>
+              {needs}
             </Card>
             <Card className="p-5">
               <h3 className="text-sm font-semibold text-slate-900">Why we verify</h3>
               <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
                 Kabutar connects people who haven't met. Verifying travellers before they post trips helps senders decide who to trust with their parcels.
               </p>
-              <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">
-                Documents are reviewed by the Kabutar team and aren't shown on your public profile.
-              </p>
+              <p className="text-[13px] text-slate-600 mt-2 leading-relaxed">{privacy}</p>
             </Card>
           </aside>
         </div>
@@ -237,111 +198,95 @@ export default function KYCPage() {
     );
   }
 
+  // ── Mobile layout (Android app + phone browsers) ──
   return (
-    <div className="px-4 py-5 space-y-5 pb-8">
-      <div className="flex items-center gap-2">
-        <button onClick={() => navigate(-1)} className="btn-ghost p-1.5 -ml-1.5">
-          <ChevronLeft size={20} />
-        </button>
-        <h1 className="text-xl font-bold text-stone-900">KYC Verification</h1>
-      </div>
-
-      {/* Status banner */}
+    <div className="px-4 pt-1 pb-4 space-y-4">
+      <ScreenHeader title="Identity verification" back />
       <StatusCard kycStatus={kycStatus} kycSubmittedAt={status?.kycSubmittedAt} />
 
-      {/* Upload wizard — hide if already verified */}
-      {wizard}
+      {kycStatus === 'verified' ? (
+        <button type="button" onClick={() => navigate('/app', { state: { intent: 'trip' } })} className={`${m.btnPrimary} w-full`}>Post a trip</button>
+      ) : (
+        <>
+          {step === 1 && kycStatus !== 'pending' && (
+            <div className={`${m.card} p-4`}>
+              <h2 className="text-[15px] font-semibold text-slate-900">Why we verify</h2>
+              <p className="text-[14px] text-slate-600 mt-1 leading-relaxed">
+                Kabutar connects people who haven't met. Travellers verify their identity before posting trips so senders know who they're trusting.
+              </p>
+              <h2 className="text-[15px] font-semibold text-slate-900 mt-4 mb-2.5">What you'll need</h2>
+              {needs}
+            </div>
+          )}
+          {wizard}
+          <p className="flex gap-2 text-[13px] text-slate-500 px-1"><Lock size={14} className="shrink-0 mt-0.5" /> {privacy}</p>
+        </>
+      )}
     </div>
   );
 }
 
 /* ─── Sub-components ─────────────────────────────────────────────────────── */
 
-function UploadStep({ title, subtitle, hint, preview, uploading, accept, capture, icon, color, onFile, onRetake }) {
-  const colors = {
-    orange: { border: 'border-orange-200 hover:border-orange-400 hover:bg-orange-50', ring: 'ring-orange-400' },
-    violet: { border: 'border-violet-200 hover:border-violet-400 hover:bg-violet-50', ring: 'ring-violet-400' },
-    blue:   { border: 'border-blue-200   hover:border-blue-400   hover:bg-blue-50',   ring: 'ring-blue-400'   },
-  };
-  const c = colors[color] || colors.orange;
-
+function UploadStep({ title, subtitle, hint, preview, uploading, accept, capture, icon, onFile, onRetake }) {
+  const Icon = icon;
   return (
     <div className="space-y-3">
       <div>
-        <h3 className="font-bold text-stone-900 text-sm">{title}</h3>
-        <p className="text-xs text-stone-400 mt-0.5">{subtitle}</p>
-        {hint && <p className="text-[11px] text-stone-400 mt-1 bg-stone-50 px-3 py-1.5 rounded-xl">{hint}</p>}
+        <h3 className="text-[17px] font-semibold text-slate-900">{title}</h3>
+        <p className="text-[14px] text-slate-500 mt-0.5">{subtitle}</p>
+        {hint && <p className="text-[13px] text-slate-500 mt-1">{hint}</p>}
       </div>
 
       {preview ? (
-        <div className="relative rounded-2xl overflow-hidden border border-stone-200">
-          <img src={preview} alt="preview" className="w-full object-cover max-h-48" />
-          <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 hover:opacity-100 transition-opacity">
-            <button onClick={onRetake}
-              className="bg-white text-stone-800 text-xs font-bold px-4 py-2 rounded-xl flex items-center gap-1.5">
-              <RotateCcw size={13} /> Retake
-            </button>
-          </div>
-          <div className="absolute top-2 right-2 bg-emerald-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
-            ✓ Uploaded
-          </div>
+        <div className="relative rounded-2xl overflow-hidden border border-slate-200">
+          <img src={preview} alt="Uploaded document preview" className="w-full object-cover max-h-52" />
+          <span className="absolute top-2 left-2 bg-emerald-600 text-white text-[12px] font-semibold px-2 py-1 rounded-lg inline-flex items-center gap-1">
+            <CheckCircle2 size={13} /> Uploaded
+          </span>
+          <button onClick={onRetake} className="absolute top-2 right-2 h-9 px-3 rounded-lg bg-white/95 text-slate-800 text-[13px] font-semibold inline-flex items-center gap-1.5">
+            <RotateCcw size={14} /> Retake
+          </button>
         </div>
       ) : (
-        <label className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl p-8 cursor-pointer transition-all ${uploading ? 'border-stone-200 opacity-60 pointer-events-none' : c.border}`}>
+        <label className={`flex flex-col items-center justify-center gap-3 border-2 border-dashed rounded-2xl p-8 cursor-pointer transition-colors ${uploading ? 'border-slate-200 opacity-60 pointer-events-none' : 'border-slate-300 active:bg-slate-50 hover:border-kb-500 hover:bg-kb-50/40'}`}>
           {uploading ? (
             <>
-              <svg className="animate-spin h-8 w-8 text-stone-400" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-              </svg>
-              <p className="text-sm font-semibold text-stone-500">Uploading to secure storage…</p>
+              <span className="w-8 h-8 border-[3px] border-slate-200 border-t-kb-500 rounded-full animate-spin" />
+              <p className="text-[14px] font-semibold text-slate-600">Uploading securely…</p>
             </>
           ) : (
             <>
-              {icon}
+              <span className="w-12 h-12 rounded-full bg-kb-50 text-kb-600 flex items-center justify-center"><Icon size={22} /></span>
               <div className="text-center">
-                <p className="text-sm font-semibold text-stone-700">Tap to upload</p>
-                <p className="text-xs text-stone-400 mt-0.5">JPG, PNG or PDF · Max 5MB</p>
+                <p className="text-[15px] font-semibold text-slate-900">Take a photo or choose a file</p>
+                <p className="text-[13px] text-slate-500 mt-0.5">JPG, PNG or PDF · up to 5 MB</p>
               </div>
             </>
           )}
-          <input
-            type="file"
-            accept={accept}
-            capture={capture}
-            className="hidden"
-            disabled={uploading}
-            onChange={e => e.target.files[0] && onFile(e.target.files[0])}
-          />
+          <input type="file" accept={accept} capture={capture} className="hidden" disabled={uploading}
+            onChange={e => e.target.files[0] && onFile(e.target.files[0])} />
         </label>
       )}
     </div>
   );
 }
 
-function PreviewThumb({ src, label }) {
-  return (
-    <div className="text-center">
-      <img src={src} alt={label} className="w-16 h-16 object-cover rounded-xl border border-stone-200 mx-auto" />
-      <p className="text-[10px] text-stone-400 mt-1">{label}</p>
-    </div>
-  );
-}
-
 function StatusCard({ kycStatus, kycSubmittedAt }) {
   const configs = {
-    none:     { icon: <Shield size={20} className="text-stone-400" />,       bg: 'bg-stone-50 border-stone-200',   title: 'Not Verified',            desc: 'Complete KYC to build trust and post trips.' },
-    pending:  { icon: <Clock size={20} className="text-amber-500" />,        bg: 'bg-amber-50 border-amber-200',   title: 'Under Review ⏳',          desc: kycSubmittedAt ? `Submitted ${format(new Date(kycSubmittedAt), 'dd MMM yyyy')} · review within 24h` : 'Your documents are being reviewed.' },
-    verified: { icon: <CheckCircle size={20} className="text-emerald-500" />,bg: 'bg-emerald-50 border-emerald-200',title: 'KYC Verified ✓',           desc: 'Your identity is verified. You can now post trips!' },
-    rejected: { icon: <XCircle size={20} className="text-red-500" />,        bg: 'bg-red-50 border-red-200',       title: 'Verification Rejected',   desc: 'Documents not accepted. Please resubmit with clearer photos.' },
+    none:     { Icon: Shield,       tone: 'bg-white border-slate-200',           ic: 'bg-slate-100 text-slate-600',     title: 'Not started',          desc: 'Verify your identity to post trips and earn an ID-verified badge.' },
+    pending:  { Icon: Clock,        tone: 'bg-amber-50/60 border-amber-200',     ic: 'bg-amber-100 text-amber-700',     title: 'Pending verification', desc: kycSubmittedAt ? `Submitted ${format(new Date(kycSubmittedAt), 'd MMM yyyy')}. We’ll alert you once it’s reviewed.` : 'Your documents are being reviewed.' },
+    verified: { Icon: CheckCircle2, tone: 'bg-emerald-50/60 border-emerald-200', ic: 'bg-emerald-100 text-emerald-700', title: 'Verified',             desc: 'Your identity is verified. You can post trips.' },
+    rejected: { Icon: XCircle,      tone: 'bg-red-50/60 border-red-200',         ic: 'bg-red-100 text-red-700',         title: 'Action required',      desc: 'Your documents weren’t accepted. Please upload clearer photos below.' },
   };
-  const cfg = configs[kycStatus] || configs.none;
+  const c = configs[kycStatus] || configs.none;
+  const Icon = c.Icon;
   return (
-    <div className={`card p-4 flex items-start gap-3 border ${cfg.bg}`}>
-      <div className="mt-0.5 shrink-0">{cfg.icon}</div>
+    <div className={`rounded-2xl border p-4 flex items-start gap-3 ${c.tone}`} role="status">
+      <span className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${c.ic}`}><Icon size={20} /></span>
       <div>
-        <div className="font-bold text-stone-900 text-sm">{cfg.title}</div>
-        <div className="text-xs text-stone-500 mt-0.5">{cfg.desc}</div>
+        <p className="text-[15px] font-semibold text-slate-900">{c.title}</p>
+        <p className="text-[14px] text-slate-600 mt-0.5 leading-relaxed">{c.desc}</p>
       </div>
     </div>
   );
