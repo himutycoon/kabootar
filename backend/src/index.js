@@ -82,6 +82,14 @@ const io = new Server(httpServer, {
 // Connect DB
 connectDB();
 
+// Permanently delete accounts whose 3-day deletion grace period has passed.
+// Runs shortly after start-up and then every 6 hours (the keep-alive ping keeps
+// the Render instance awake), so deletion doesn't depend on the user returning.
+const { purgeDueAccounts } = require('./utils/accountDeletion');
+const runPurge = () => purgeDueAccounts().catch(err => console.error('[accountDeletion]', err.message));
+setTimeout(runPurge, 60 * 1000);
+setInterval(runPurge, 6 * 60 * 60 * 1000);
+
 // ── Simple in-memory cache for expensive read-only endpoints ──────────────────
 // Prevents 100 users opening the app simultaneously from firing 100 MongoDB
 // aggregations. Trending/stats/explore are recalculated at most once per minute.

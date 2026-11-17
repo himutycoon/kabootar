@@ -25,7 +25,8 @@ const protect = async (req, res, next) => {
     if (user.pendingDeletion && user.deletionRequestedAt) {
       const daysSinceRequest = (Date.now() - new Date(user.deletionRequestedAt)) / (1000 * 60 * 60 * 24);
       if (daysSinceRequest >= 3) {
-        await User.findByIdAndDelete(user._id);
+        // Full deletion: trips, parcels, messages, reviews, files, Firebase account
+        await require('../utils/accountDeletion').purgeUser(user._id);
         return res.status(401).json({ message: 'Account has been permanently deleted', deleted: true });
       }
       // User logged in within 3 days — cancel the deletion automatically
