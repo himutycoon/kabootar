@@ -41,7 +41,8 @@ export default function TripDetailModal({ trip, onClose }) {
   const isVerified= traveller?.kycStatus === 'verified';
   const dep       = fmtTime(trip.departureTime);
   const arr       = fmtTime(trip.arrivalTime);
-  const tripDates = getTripDates(trip);
+  const sod = new Date(); sod.setHours(0, 0, 0, 0);
+  const tripDates = getTripDates(trip).filter(d => d >= sod); // upcoming only
 
   let duration = '';
   if (trip.departureTime && trip.arrivalTime) {
@@ -111,7 +112,7 @@ export default function TripDetailModal({ trip, onClose }) {
 
           {tripDates.length > 1 && (
             <div className="border border-slate-200 rounded-2xl p-4">
-              <p className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5"><CalendarDays size={15} /> Travelling on {tripDates.length} dates</p>
+              <p className="text-[13px] font-semibold text-slate-900 flex items-center gap-1.5"><CalendarDays size={15} /> Travelling on {tripDates.length} upcoming dates</p>
               <div className="flex flex-wrap gap-1.5 mt-2.5">
                 {tripDates.map(d => (
                   <span key={d.toISOString()} className="text-[12px] font-semibold bg-slate-100 text-slate-700 px-2 py-1 rounded-md">{format(d, 'd MMM')}</span>

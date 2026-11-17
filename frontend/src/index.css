@@ -171,7 +171,6 @@
   }
 }
 
-/* Purple-tinted scrollbar to match landing page */
 /* ── Skeleton shimmer utility (used by SkeletonCard.jsx) ─── */
 .skeleton-shimmer {
   background: linear-gradient(90deg, #ede9ff 0%, #f7f6ff 40%, #ede9ff 80%);
@@ -193,7 +192,15 @@
   animation: routeSweep 2.2s ease-in-out infinite;
 }
 
-::-webkit-scrollbar       { width: 4px; height: 4px; }
-::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb { background: #c4b5fd; border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: #8b5cf6; }
+/* Slim custom scrollbars only for mouse-driven desktops. Touch devices
+   (Android WebView, phone browsers) keep their native overlay scrollbars. */
+@media (hover: hover) and (pointer: fine) {
+  ::-webkit-scrollbar       { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; border: 2px solid transparent; background-clip: content-box; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; background-clip: content-box; }
+}
+
+/* Horizontal carousels: no visible scrollbar on any device */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }

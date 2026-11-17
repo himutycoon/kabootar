@@ -176,7 +176,7 @@ export default function ExplorePage() {
         items={[['trips', 'Travellers', data ? trips.length : undefined], ['parcels', 'Parcels', data ? parcels.length : undefined]]} />
 
       {kind === 'trips' && (
-        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 mt-3 pb-0.5" style={{ scrollbarWidth: 'none' }}>
+        <div className="flex gap-2 overflow-x-auto -mx-4 px-4 mt-3 pb-0.5 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
           {[['any', 'Any time'], ['today', 'Today'], ['week', 'Next 7 days'], ['month', 'Next 30 days']].map(([k, label]) => (
             <button key={k} type="button" onClick={() => setWhen(k)} className={`${m.chip(when === k)} shrink-0`}>{label}</button>
           ))}
@@ -186,7 +186,7 @@ export default function ExplorePage() {
       {!loading && (data?.trending?.length ?? 0) > 0 && !q && (
         <section className="mt-6">
           <SectionTitle title="Popular routes" />
-          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
             {data.trending.map(r => (
               <button key={`${r.from}-${r.to}`} type="button" onClick={() => navigate('/trips', { state: { from: r.from, to: r.to } })}
                 className="shrink-0 h-10 px-3.5 rounded-full bg-white border border-slate-200 flex items-center gap-2 text-[13px] font-semibold text-slate-800 active:bg-slate-50">

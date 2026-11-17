@@ -75,6 +75,19 @@ export default function Layout() {
     return () => clearTimeout(t);
   }, [intent]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Hide the bottom nav while a text field is focused: with the keyboard open,
+  // Android resizes the WebView and the fixed nav would float over the content.
+  const [typing, setTyping] = useState(false);
+  useEffect(() => {
+    const NON_TEXT = ['checkbox', 'radio', 'button', 'submit', 'file', 'date', 'time', 'range', 'color'];
+    const isField = (el) => !!el && (el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && !NON_TEXT.includes(el.type)));
+    const onIn  = (e) => { if (isField(e.target)) setTyping(true); };
+    const onOut = () => setTimeout(() => setTyping(isField(document.activeElement)), 0);
+    document.addEventListener('focusin', onIn);
+    document.addEventListener('focusout', onOut);
+    return () => { document.removeEventListener('focusin', onIn); document.removeEventListener('focusout', onOut); };
+  }, []);
+
   const isDesktopWeb = useDesktopWeb();
   const openAlerts   = () => { localStorage.setItem('kabutar_alerts_seen', Date.now().toString()); setNotifUnread(0); navigate('/notifications'); };
   const openMessages = () => authGate(() => { setChatUnread(0); navigate('/messages'); });
@@ -153,7 +166,7 @@ export default function Layout() {
       </main>
 
       {/* Bottom navigation */}
-      <nav className="fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200"
+      <nav className={`fixed bottom-0 inset-x-0 z-40 bg-white border-t border-slate-200 ${typing ? 'hidden' : ''}`}
         style={{ paddingBottom: 'env(safe-area-inset-bottom,0px)' }} aria-label="Main">
         <div className="h-16 max-w-lg mx-auto flex items-stretch">
           <NavLink to="/app" end className={({ isActive }) => tab(isActive)}>

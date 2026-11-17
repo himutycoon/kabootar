@@ -40,7 +40,7 @@ export default function LocationFilterBar({
     <div className="space-y-2">
 
       {/* ── Filter chips ── */}
-      <div className="flex gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: 'none' }}>
+      <div className="flex gap-2 overflow-x-auto pb-0.5 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
         {CHIPS.map(({ id, Icon, label }) => {
           const active  = activeFilter === id;
           const loading = id === 'nearby' && loc.loading;

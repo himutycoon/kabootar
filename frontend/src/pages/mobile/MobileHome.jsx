@@ -195,7 +195,7 @@ export default function MobileHome() {
             <p className="text-[13px] text-slate-500 mt-1">Post a parcel request so travellers can find you.</p>
           </div>
         ) : (
-          <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 snap-x snap-mandatory" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-3 overflow-x-auto -mx-4 px-4 pb-1 snap-x snap-mandatory no-scrollbar" style={{ scrollbarWidth: 'none' }}>
             {travellers.map(t => {
               const u = t.userId || {};
               const ModeIcon = MODE_ICON[t.transportMode] || Route;
@@ -235,7 +235,7 @@ export default function MobileHome() {
       {feed.trending.length > 0 && (
         <section>
           <SectionTitle title="Trending routes" />
-          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1" style={{ scrollbarWidth: 'none' }}>
+          <div className="flex gap-2 overflow-x-auto -mx-4 px-4 pb-1 no-scrollbar" style={{ scrollbarWidth: 'none' }}>
             {feed.trending.map(r => (
               <button key={`${r.from}-${r.to}`} type="button" onClick={() => navigate('/trips', { state: { from: r.from, to: r.to } })}
                 className="shrink-0 h-10 px-3.5 rounded-full bg-white border border-slate-200 flex items-center gap-2 text-[13px] font-semibold text-slate-800 active:bg-slate-50">

@@ -462,7 +462,7 @@ export default function ChatPage() {
       )}
 
       {/* ── Quick messages ── */}
-      <div className="bg-white border-t border-slate-100 px-3 pt-2 pb-0 overflow-x-auto shrink-0"
+      <div className="bg-white border-t border-slate-100 px-3 pt-2 pb-0 overflow-x-auto shrink-0 no-scrollbar"
         style={{ scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
         <div className="flex gap-1.5 pb-2">
           {['Deal', 'When can you pick up?', 'Thank you', 'Please handle with care',

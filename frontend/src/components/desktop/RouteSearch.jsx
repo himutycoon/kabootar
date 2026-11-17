@@ -47,11 +47,18 @@ export function CityField({ id: idProp, label, placeholder, dot, value, onChange
           aria-controls={`${id}-list`}
           aria-autocomplete="list"
           autoComplete="off"
-          className={`w-full min-w-0 bg-transparent outline-none text-slate-900 placeholder:text-slate-400 font-semibold ${compact ? 'text-sm' : 'text-[15px]'}`}
+          className={`w-full min-w-0 scroll-mt-32 bg-transparent outline-none text-slate-900 placeholder:text-slate-400 font-semibold ${compact ? 'text-sm' : 'text-[15px]'}`}
           placeholder={placeholder}
           value={value}
           onChange={e => { onChange(e.target.value); setOpen(true); setActive(-1); }}
-          onFocus={() => setOpen(true)}
+          onFocus={(e) => {
+            setOpen(true);
+            // Touch devices: once the keyboard has opened, lift the field (and its suggestions) into view
+            if (window.matchMedia('(pointer: coarse)').matches) {
+              const el = e.currentTarget;
+              setTimeout(() => el.scrollIntoView({ block: 'start', behavior: 'smooth' }), 300);
+            }
+          }}
           onBlur={() => setTimeout(() => setOpen(false), 120)}
           onKeyDown={onKeyDown}
         />

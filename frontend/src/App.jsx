@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
@@ -50,34 +50,34 @@ function AndroidBackHandler() {
   const navigate  = useNavigate();
   const location  = useLocation();
 
-  useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
+  // Read the *current* route inside one long-lived listener. (Re-registering per
+  // route raced with the async import: the listener for "/" was added after its
+  // cleanup ran, never got removed, and made back exit the app on every screen.)
+  const pathRef = useRef(location.pathname);
+  const navRef  = useRef(navigate);
+  useEffect(() => { pathRef.current = location.pathname; navRef.current = navigate; }, [location.pathname, navigate]);
 
-    let unsub = null;
+  useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return undefined;
+    let handle = null;
+    let cancelled = false;
 
     import('@capacitor/app').then(({ App }) => {
-      const ROOT_PATHS = ['/', '/app', '/login'];
-      const isRoot = () => ROOT_PATHS.includes(location.pathname);
-
-      const handler = App.addListener('backButton', () => {
+      // /login is not a root: back from login returns to the screen that asked you to sign in
+      const ROOT_PATHS = ['/', '/app'];
+      App.addListener('backButton', () => {
         // An open sheet/dialog takes the back press first
         if (handleBackOverlay()) return;
-        if (isRoot()) {
-          // At root — exit the app
-          App.exitApp();
-        } else {
-          // Elsewhere — go back in router history
-          navigate(-1);
-        }
-      });
-
-      unsub = handler;
+        if (ROOT_PATHS.includes(pathRef.current)) { App.exitApp(); return; }
+        // Go back in history; if this screen was opened directly, go Home instead
+        const idx = window.history.state?.idx ?? 0;
+        if (idx > 0) navRef.current(-1);
+        else navRef.current('/app', { replace: true });
+      }).then(h => { if (cancelled) h.remove(); else handle = h; });
     });
 
-    return () => {
-      unsub?.then?.(h => h.remove()).catch(() => {});
-    };
-  }, [location.pathname, navigate]);
+    return () => { cancelled = true; handle?.remove(); };
+  }, []);
 
   return null;
 }

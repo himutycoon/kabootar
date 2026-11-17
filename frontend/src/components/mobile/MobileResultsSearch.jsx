@@ -73,8 +73,11 @@ export default function MobileResultsSearch({ value, onSubmit, showDate = false,
         {showDate && (
           <label className="block px-3.5 py-2.5">
             <span className="block text-xs font-medium text-slate-500 mb-1">Travel date <span className="text-slate-400 font-normal">(optional)</span></span>
-            <input type="date" min={todayStr()} value={draft.date} onChange={e => set('date')(e.target.value)}
-              className={`w-full bg-transparent outline-none text-[15px] font-semibold ${draft.date ? 'text-slate-900' : 'text-slate-400'}`} />
+            <span className="relative block">
+              <input type="date" min={todayStr()} value={draft.date} onChange={e => set('date')(e.target.value)} aria-label="Travel date"
+                className={`w-full bg-transparent outline-none text-[15px] font-semibold ${draft.date ? 'text-slate-900' : 'text-transparent'}`} />
+              {!draft.date && <span className="absolute left-0 top-1/2 -translate-y-1/2 text-[15px] font-semibold text-slate-400 pointer-events-none">Any date</span>}
+            </span>
           </label>
         )}
       </div>
