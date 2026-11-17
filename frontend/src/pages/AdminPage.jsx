@@ -89,29 +89,7 @@ function PromoteForm({ onPromoted }) {
 function AdminDashboard() {
   const navigate  = useNavigate();
   const [tab,     setTab]     = useState('overview');
-  const [purging, setPurging] = useState(false);
 
-  const purgeTestData = async () => {
-    if (!window.confirm(
-      '⚠️ This will permanently delete ALL trips, parcels, messages, posts, reports and non-admin users.\n\nThis cannot be undone. Continue?'
-    )) return;
-    if (!window.confirm('Are you absolutely sure? Type OK to confirm in the next dialog.')) return;
-    const input = window.prompt('Type DELETE to confirm:');
-    if (input !== 'DELETE') { toast.error('Cancelled'); return; }
-
-    setPurging(true);
-    try {
-      const { data } = await api.post('/admin/purge-test-data');
-      toast.success(
-        `Cleaned! Trips:${data.deleted.trips} Parcels:${data.deleted.parcels} Users:${data.deleted.users} Messages:${data.deleted.messages}`,
-        { duration: 8000 }
-      );
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Purge failed');
-    } finally {
-      setPurging(false);
-    }
-  };
 
   return (
     <div className="min-h-screen bg-stone-50">
@@ -124,10 +102,6 @@ function AdminDashboard() {
           <Shield size={18} className="text-orange-500" />
           <span className="font-bold text-stone-900">Admin Panel</span>
         </div>
-        <button onClick={purgeTestData} disabled={purging}
-          className="text-[10px] font-bold px-2.5 py-1.5 rounded-xl bg-red-50 text-red-500 border border-red-200 active:scale-95 transition-all disabled:opacity-50">
-          {purging ? 'Clearing…' : '🗑️ Clear Test Data'}
-        </button>
       </div>
 
       {/* Tabs — horizontally scrollable so it holds up as more sections get added */}

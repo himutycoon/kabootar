@@ -1,4 +1,5 @@
 const express = require('express');
+const { hiddenUserIds } = require('../utils/blocks');
 const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect, optionalAuth } = require('../middleware/auth');
@@ -21,9 +22,8 @@ router.get('/', optionalAuth, async (req, res) => {
     else filter.status = 'open';
 
     // Hide parcels from blocked users
-    if (req.user?.blockedUsers?.length) {
-      filter.userId = { $nin: req.user.blockedUsers };
-    }
+    const hidden = await hiddenUserIds(req.user);
+    if (hidden.length) filter.userId = { $nin: hidden };
 
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);

@@ -1,4 +1,5 @@
 const express = require('express');
+const { isBlockedBetween } = require('../utils/blocks');
 const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
@@ -82,6 +83,13 @@ router.post('/:userId', protect, async (req, res) => {
     }
     if (type === 'image' && !imageUrl) {
       return res.status(400).json({ message: 'imageUrl required for image messages' });
+    }
+
+    if (String(req.params.userId) === String(req.user._id)) {
+      return res.status(400).json({ message: 'Invalid recipient' });
+    }
+    if (await isBlockedBetween(req.user._id, req.params.userId)) {
+      return res.status(403).json({ message: "You can't message this user." });
     }
 
     const message = await Message.create({

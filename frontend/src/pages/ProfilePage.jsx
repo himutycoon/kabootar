@@ -272,8 +272,13 @@ export default function ProfilePage() {
                   setDeletingAccount(true);
                   try {
                     await api.post('/auth/me/request-delete');
-                  } catch { /* existing behaviour: signs out even if the request failed */ }
-                  toast.success('Account scheduled for deletion 🕊️');
+                  } catch (err) {
+                    // Don't claim success or sign out if the server didn't record the request
+                    toast.error(err.response?.data?.message || "Couldn't delete your account. Check your connection and try again.");
+                    setDeletingAccount(false);
+                    return;
+                  }
+                  toast.success('Account scheduled for deletion. Log in within 3 days to cancel.');
                   setShowDeleteModal(false);
                   setDeletingAccount(false);
                   await logout();

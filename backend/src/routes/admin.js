@@ -5,18 +5,35 @@ const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/admin');
 
 // POST /api/admin/promote
-// Current user promotes themselves to admin using the ADMIN_SECRET env var
-router.post('/promote', protect, async (req, res) => {
+// Lets the current user become admin with ADMIN_SECRET. Disabled unless
+// ADMIN_PROMOTE_ENABLED=true is set, so it can be switched on briefly to
+// bootstrap an admin and then turned off. Existing admins should grant access
+// with PATCH /users/:id/role instead.
+const crypto = require('crypto');
+const rateLimit = require('express-rate-limit');
+const promoteLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: 'Too many attempts. Try again in an hour.' },
+});
+const secretMatches = (given) => {
+  const expected = process.env.ADMIN_SECRET || '';
+  if (!expected || typeof given !== 'string') return false;
+  const a = crypto.createHash('sha256').update(given).digest();
+  const b = crypto.createHash('sha256').update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+};
+router.post('/promote', promoteLimiter, protect, async (req, res) => {
   try {
-    const { secret } = req.body;
-    if (!process.env.ADMIN_SECRET || secret !== process.env.ADMIN_SECRET) {
+    if (process.env.ADMIN_PROMOTE_ENABLED !== 'true') {
+      return res.status(403).json({ message: 'Self-promotion is turned off. Ask an existing admin to grant you access.' });
+    }
+    if (!secretMatches(req.body?.secret)) {
       return res.status(403).json({ message: 'Invalid admin secret' });
     }
-    const user = await User.findByIdAndUpdate(
-      req.user._id,
-      { role: 'admin' },
-      { new: true }
-    ).select('-reviews');
+    const user = await User.findByIdAndUpdate(req.user._id, { role: 'admin' }, { new: true }).select('-reviews');
     res.json({ user, message: 'You are now an admin' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -360,45 +377,6 @@ router.post('/broadcast', adminOnly, async (req, res) => {
     }
 
     res.json({ ok: true, count: userIds.length });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// POST /api/admin/purge-test-data — delete all test data, keep admin accounts
-router.post('/purge-test-data', adminOnly, async (req, res) => {
-  try {
-    const Trip    = require('../models/Trip');
-    const Parcel  = require('../models/Parcel');
-    const Message = require('../models/Message');
-    const Post    = require('../models/Post');
-    const Report  = require('../models/Report');
-    const AppNotification = require('../models/AppNotification');
-
-    const [trips, parcels, messages, posts, reports, notifs] = await Promise.all([
-      Trip.deleteMany({}),
-      Parcel.deleteMany({}),
-      Message.deleteMany({}),
-      Post.deleteMany({}),
-      Report.deleteMany({}),
-      AppNotification.deleteMany({}),
-    ]);
-
-    // Delete non-admin users
-    const usersDeleted = await User.deleteMany({ role: { $ne: 'admin' } });
-
-    res.json({
-      ok: true,
-      deleted: {
-        trips:       trips.deletedCount,
-        parcels:     parcels.deletedCount,
-        messages:    messages.deletedCount,
-        posts:       posts.deletedCount,
-        reports:     reports.deletedCount,
-        notifs:      notifs.deletedCount,
-        users:       usersDeleted.deletedCount,
-      },
-    });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

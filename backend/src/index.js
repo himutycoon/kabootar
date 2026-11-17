@@ -44,6 +44,8 @@ const cityRoutes          = require('./routes/cities');
 require('./models/Report');
 
 const app = express();
+// Render puts one proxy in front of the app; trust it so rate limits see real client IPs
+app.set('trust proxy', 1);
 const httpServer = createServer(app);
 
 // Origins that are always allowed regardless of FRONTEND_URL:
@@ -59,19 +61,18 @@ const CAPACITOR_ORIGINS = [
   'ionic://localhost',
 ];
 
+// Production web + Android WebView (Capacitor serves the app from https://kabutar.in)
+const SITE_ORIGINS = ['https://kabutar.in', 'https://www.kabutar.in'];
+const extraOrigins = (process.env.FRONTEND_URL || '')
+  .split(',').map(o => o.trim()).filter(o => o && o !== '*');
+const ALLOWED_ORIGINS = new Set([...SITE_ORIGINS, ...CAPACITOR_ORIGINS, ...extraOrigins]);
+
 const corsOriginFn = (origin, callback) => {
-  const allowed = process.env.FRONTEND_URL || '*';
-  // Allow requests with no origin (Capacitor native HTTP, curl, server-to-server)
+  // No Origin header: native HTTP clients, server-to-server, health checks
   if (!origin) return callback(null, true);
-  // Always allow Capacitor/Ionic WebView origins (Android & iOS app)
-  if (CAPACITOR_ORIGINS.includes(origin)) return callback(null, true);
-  // Allow wildcard or specific configured origin
-  if (allowed === '*' || origin === allowed) return callback(null, true);
-  // Allow any origin listed in comma-separated FRONTEND_URL
-  const list = allowed.split(',').map(s => s.trim());
-  if (list.includes(origin) || list.includes('*')) return callback(null, true);
-  // Default: allow (MVP — tighten after launch)
-  callback(null, true);
+  if (ALLOWED_ORIGINS.has(origin)) return callback(null, true);
+  // Any other website: no CORS headers, so browsers block the response
+  callback(null, false);
 };
 
 const io = new Server(httpServer, {

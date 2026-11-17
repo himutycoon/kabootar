@@ -7,6 +7,8 @@ export const getSocket = () => {
     socket = io(import.meta.env.VITE_SOCKET_URL || 'http://localhost:5000', {
       autoConnect: false,
       transports: ['websocket'],
+      // The server authenticates the socket with the login token (read fresh on every reconnect)
+      auth: (cb) => cb({ token: localStorage.getItem('kabootar_token') || '' }),
     });
   }
   return socket;

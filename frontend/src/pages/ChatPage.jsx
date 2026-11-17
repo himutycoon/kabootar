@@ -85,6 +85,8 @@ export default function ChatPage() {
     socket.emit('check_online', userId);
 
     const onMsg = (msg) => setMessages(prev => {
+      // Messages from other conversations also arrive (for chat-list badges) — ignore them here
+      if (![String(msg.senderId), String(msg.receiverId)].includes(String(userId))) return prev;
       if (prev.find(m => m._id === msg._id)) return prev;
       const base = msg.type === 'image' ? prev.filter(m => !m.sending) : prev;
       return [...base, msg];
@@ -95,6 +97,8 @@ export default function ChatPage() {
     const onOnline    = ({ userId: uid }) => { if (uid === userId) setIsOnline(true); };
     const onOffline   = ({ userId: uid, lastSeenAt: ls }) => { if (uid === userId) { setIsOnline(false); setLastSeenAt(ls); } };
 
+    const onMsgError  = ({ message } = {}) => toast.error(message || 'Message not sent');
+    socket.on('message_error',          onMsgError);
     socket.on('receive_message',        onMsg);
     socket.on('partner_typing',         onTyping);
     socket.on('partner_stopped_typing', onStop);
@@ -103,6 +107,7 @@ export default function ChatPage() {
     socket.on('user_offline',           onOffline);
 
     return () => {
+      socket.off('message_error',          onMsgError);
       socket.off('receive_message',        onMsg);
       socket.off('partner_typing',         onTyping);
       socket.off('partner_stopped_typing', onStop);

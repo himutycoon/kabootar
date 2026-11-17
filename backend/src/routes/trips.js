@@ -1,4 +1,5 @@
 const express = require('express');
+const { hiddenUserIds } = require('../utils/blocks');
 const router = express.Router();
 const Trip = require('../models/Trip');
 const User = require('../models/User');
@@ -52,9 +53,8 @@ router.get('/', optionalAuth, async (req, res) => {
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
 
     // Hide trips from users this viewer has blocked (and vice-versa)
-    if (req.user?.blockedUsers?.length) {
-      filter.userId = { $nin: req.user.blockedUsers };
-    }
+    const hidden = await hiddenUserIds(req.user);
+    if (hidden.length) filter.userId = { $nin: hidden };
 
     if (from) filter.fromCity = { $regex: new RegExp(escapeRegex(from), 'i') };
     if (to)   filter.toCity   = { $regex: new RegExp(escapeRegex(to),   'i') };
