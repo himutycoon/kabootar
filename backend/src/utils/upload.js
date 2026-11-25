@@ -1,20 +1,11 @@
 const multer = require('multer');
+const crypto = require('crypto');
 const path = require('path');
-const fs = require('fs');
 
-const uploadsDir = path.join(__dirname, '../../uploads');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
-
+// Uploads are held in memory and stored in Firebase Storage — never on the
+// server's own disk, which Render wipes on every deploy/restart.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith('image/') || file.mimetype === 'application/pdf') {
@@ -25,10 +16,25 @@ const upload = multer({
   },
 });
 
-const getFileUrl = (req, filename) => {
-  const proto = req.get('x-forwarded-proto') || req.protocol;
-  const host = req.get('host');
-  return `${proto}://${host}/uploads/${filename}`;
-};
+// Same bucket the app's Firebase client uses (public project config, not a secret)
+const BUCKET = process.env.FIREBASE_STORAGE_BUCKET || 'kabootar-9174c.firebasestorage.app';
 
-module.exports = { upload, getFileUrl };
+// Store an uploaded file and return a Firebase download URL (same format the
+// app's client-side uploads use, so the account-deletion job can remove it)
+async function storeUpload(file, folder) {
+  const admin = require('firebase-admin');
+  if (!admin.apps.length) throw new Error('File storage is not configured');
+  const ext = path.extname(file.originalname || '').toLowerCase().replace(/[^.a-z0-9]/g, '') || '';
+  const objectPath = `${folder}/${Date.now()}-${crypto.randomBytes(6).toString('hex')}${ext}`;
+  const token = crypto.randomUUID();
+  await admin.storage().bucket(BUCKET).file(objectPath).save(file.buffer, {
+    resumable: false,
+    metadata: {
+      contentType: file.mimetype,
+      metadata: { firebaseStorageDownloadTokens: token },
+    },
+  });
+  return `https://firebasestorage.googleapis.com/v0/b/${BUCKET}/o/${encodeURIComponent(objectPath)}?alt=media&token=${token}`;
+}
+
+module.exports = { upload, storeUpload };

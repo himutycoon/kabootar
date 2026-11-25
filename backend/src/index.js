@@ -135,14 +135,32 @@ app.use(express.json({ limit: '1mb' }));
 // NoSQL injection prevention (runs after json() so req.body is defined)
 app.use(mongoSanitize());
 
-// General rate limit: raised to 300/15min — 100 was too strict for active app users
+// General rate limit. Signed-in users (a *valid* token) get more headroom and are
+// counted per user; everyone else — including requests with a fake or expired
+// token — is limited per IP. (It used to skip any request that merely had an
+// Authorization header, so a made-up header bypassed the limit entirely.)
+const jwt = require('jsonwebtoken');
+const { ipKeyGenerator } = rateLimit;
+const tokenUserId = (req) => {
+  if (req._rlUid !== undefined) return req._rlUid;
+  const h = req.headers.authorization;
+  let uid = null;
+  if (h && h.startsWith('Bearer ')) {
+    try { uid = String(jwt.verify(h.slice(7), process.env.JWT_SECRET).id); } catch { uid = null; }
+  }
+  req._rlUid = uid;
+  return uid;
+};
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  limit: (req) => (tokenUserId(req) ? 1500 : 300),
+  keyGenerator: (req) => {
+    const uid = tokenUserId(req);
+    return uid ? `user:${uid}` : ipKeyGenerator(req.ip);
+  },
   message: { message: 'Too many requests, please try again shortly.' },
   standardHeaders: true,
   legacyHeaders: false,
-  skip: (req) => !!req.headers.authorization, // authenticated users get more headroom
 });
 app.use('/api/', generalLimiter);
 

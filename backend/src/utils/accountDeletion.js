@@ -40,6 +40,10 @@ async function purgeUser(userId) {
   if (!user) return false;
   const id = user._id;
 
+  // Handover photos on the parcels they posted (deleted with those parcels below)
+  const ownParcels = await Parcel.find({ userId: id }).select('pickupPhotoUrl deliveryPhotoUrl').lean();
+  await Promise.all(ownParcels.flatMap(p => [deleteStorageFile(p.pickupPhotoUrl), deleteStorageFile(p.deliveryPhotoUrl)]));
+
   await Promise.all([
     Trip.deleteMany({ userId: id }),
     Parcel.deleteMany({ userId: id }),

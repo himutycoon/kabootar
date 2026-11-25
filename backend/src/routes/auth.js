@@ -231,12 +231,12 @@ router.post('/me/fcm-unsubscribe', protect, async (req, res) => {
 
 // POST /api/auth/me/image — upload profile photo (multer file → stored URL)
 // Also accepts legacy { imageUrl } JSON body for backward compat
-const { upload, getFileUrl } = require('../utils/upload');
+const { upload, storeUpload } = require('../utils/upload');
 router.post('/me/image', protect, upload.single('image'), async (req, res) => {
   try {
     let imageUrl;
     if (req.file) {
-      imageUrl = getFileUrl(req, req.file.filename);
+      imageUrl = await storeUpload(req.file, `profile-images/${req.user._id}`);
     } else if (req.body.imageUrl) {
       imageUrl = req.body.imageUrl; // legacy base64 fallback
     } else {

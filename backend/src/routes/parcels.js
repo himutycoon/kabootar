@@ -3,7 +3,7 @@ const { hiddenUserIds } = require('../utils/blocks');
 const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect, optionalAuth } = require('../middleware/auth');
-const { upload, getFileUrl } = require('../utils/upload');
+const { upload, storeUpload } = require('../utils/upload');
 const { notify } = require('../utils/notifications');
 const { assertRouteAllowed } = require('../utils/serviceCities');
 const { escapeRegex } = require('../utils/regex');
@@ -218,7 +218,7 @@ router.post('/:id/pickup-photo', protect, upload.single('photo'), async (req, re
     }
     if (!req.file) return res.status(400).json({ message: 'Photo required' });
 
-    parcel.pickupPhotoUrl = getFileUrl(req, req.file.filename);
+    parcel.pickupPhotoUrl = await storeUpload(req.file, `handover-photos/${parcel._id}`);
     await parcel.save();
     res.json({ parcel });
   } catch (err) {
@@ -239,7 +239,7 @@ router.post('/:id/delivery-photo', protect, upload.single('photo'), async (req, 
     }
     if (!req.file) return res.status(400).json({ message: 'Photo required' });
 
-    parcel.deliveryPhotoUrl = getFileUrl(req, req.file.filename);
+    parcel.deliveryPhotoUrl = await storeUpload(req.file, `handover-photos/${parcel._id}`);
     await parcel.save();
     res.json({ parcel });
   } catch (err) {
