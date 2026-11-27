@@ -28,6 +28,8 @@ Trip and Parcel Data
 • Travel dates, transport mode, and schedule
 • Parcel details including weight, type, and description
 • Pricing information
+• Photos of a parcel you choose to add (optional)
+• Routes you follow for alerts
 
 Communication Data
 • In-app chat messages between Travelers and Senders
@@ -193,7 +195,7 @@ export default function PrivacyPage() {
             <ArrowLeft size={18} />
           </button>
           <span className="font-bold text-stone-900 text-sm">Privacy Policy</span>
-          <span className="ml-auto text-xs text-stone-400">Last updated: January 2025</span>
+          <span className="ml-auto text-xs text-stone-400">Last updated: November 2026</span>
         </div>
       </div>
 
@@ -227,7 +229,7 @@ export default function PrivacyPage() {
 
         {/* Footer note */}
         <div className="mt-6 text-center text-xs text-stone-400 space-y-1">
-          <p>© 2025 Kabutar. All rights reserved.</p>
+          <p>© 2026 Kabutar. All rights reserved.</p>
           <p>
             <button onClick={() => navigate('/terms')} className="text-orange-500 hover:underline">Terms &amp; Conditions</button>
             {' · '}
