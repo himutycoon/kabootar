@@ -1,8 +1,5 @@
 const express = require('express');
 const router = express.Router();
-// Missing or empty ticket fields both mean "no ticket" ($nin null also matches missing)
-const HAS_TICKET = ['pnrNumber', 'trainNumber', 'flightNumber'].map(k => ({ [k]: { $nin: ['', null] } }));
-
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/admin');
@@ -72,19 +69,17 @@ router.get('/stats', adminOnly, async (req, res) => {
 
     // Funnel: how far people get, from sign-up to a completed delivery (from our own data)
     const Parcel_ = Parcel;
-    const [profileComplete, kycSubmitted, postedTrip, postedParcel, completedDelivery, pendingTripChecks] = await Promise.all([
+    const [profileComplete, kycSubmitted, postedTrip, postedParcel, completedDelivery] = await Promise.all([
       User.countDocuments({ profileImage: { $nin: ['', null] }, city: { $nin: ['', null] } }),
       User.countDocuments({ kycStatus: { $in: ['pending', 'verified', 'rejected'] } }),
       Trip.distinct('userId').then(a => a.length),
       Parcel_.distinct('userId').then(a => a.length),
       Parcel_.distinct('userId', { status: 'completed' }).then(a => a.length),
-      Trip.countDocuments({ isVerified: { $ne: true }, status: 'active',
-        $or: HAS_TICKET }),
     ]);
 
     res.json({
       totalUsers, verifiedUsers, pendingKyc, rejectedKyc, bannedUsers, newUsers7d, adminCount,
-      activeTrips, openParcels, pendingReports, launchCities, pendingTripChecks,
+      activeTrips, openParcels, pendingReports, launchCities,
       funnel: { signedUp: totalUsers, profileComplete, kycSubmitted, kycVerified: verifiedUsers, postedTrip, postedParcel, completedDelivery },
     });
   } catch (err) {
@@ -309,13 +304,8 @@ router.get('/trips', adminOnly, async (req, res) => {
     const Trip = require('../models/Trip');
     const page = parseInt(req.query.page) || 1;
     const limit = 30;
-    const { status, verification } = req.query;
+    const { status } = req.query;
     const filter = status && status !== 'all' ? { status } : {};
-    // Trips waiting for a ticket check: they shared PNR/train/flight details and aren't verified yet
-    if (verification === 'pending') {
-      filter.isVerified = { $ne: true };
-      filter.$or = HAS_TICKET;
-    }
     const [trips, total] = await Promise.all([
       Trip.find(filter)
         .populate('userId', 'name phone kycStatus')
@@ -325,32 +315,6 @@ router.get('/trips', adminOnly, async (req, res) => {
       Trip.countDocuments(filter),
     ]);
     res.json({ trips, total, page, pages: Math.ceil(total / limit) });
-  } catch (err) {
-    res.status(500).json({ message: err.message });
-  }
-});
-
-// PATCH /api/admin/trips/:id/verify — { verified: true|false } after checking ticket details
-router.patch('/trips/:id/verify', adminOnly, async (req, res) => {
-  try {
-    const Trip = require('../models/Trip');
-    const verified = req.body?.verified === true;
-    const trip = await Trip.findByIdAndUpdate(
-      req.params.id,
-      { isVerified: verified, verifiedAt: verified ? new Date() : null },
-      { new: true }
-    ).populate('userId', 'name phone kycStatus');
-    if (!trip) return res.status(404).json({ message: 'Trip not found' });
-    if (verified) {
-      const { notify } = require('../utils/notifications');
-      notify(trip.userId?._id, {
-        title: 'Your trip is verified',
-        body:  `${trip.fromCity} → ${trip.toCity} now shows a Verified trip badge to senders.`,
-        type:  'trip',
-        data:  { type: 'trip_verified', tripId: String(trip._id), screen: '/trips' },
-      }).catch(() => {});
-    }
-    res.json({ trip });
   } catch (err) {
     res.status(500).json({ message: err.message });
   }

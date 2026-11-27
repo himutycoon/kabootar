@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
 import { MapPin, Trash2, MessageCircle, Star,
-         Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2, ExternalLink, ShieldCheck } from 'lucide-react';
+         Train, Plane, Bus, Car, CheckCircle, ChevronRight, Clock, Edit2, ExternalLink } from 'lucide-react';
 import TravelerProfileModal from './TravelerProfileModal';
 import TripDetailModal from './TripDetailModal';
 import { formatTripDatesLong } from '../lib/tripDates';
@@ -12,15 +12,10 @@ const TRANSPORT_ICONS  = { train: Train, flight: Plane, bus: Bus, car: Car };
 const TRANSPORT_EMOJI  = { train: '🚂', flight: '✈️', bus: '🚌', car: '🚗' };
 const TRANSPORT_LABELS = { train: 'Train', flight: 'Flight', bus: 'Bus', car: 'Car' };
 
-// Ticket badge: verified by Kabutar > waiting for a check (owner only) > details shared
-function TicketBadge({ trip, isOwn, size = 'md' }) {
-  const hasTicket = trip.pnrNumber || trip.trainNumber || trip.flightNumber;
+// Shown when the traveller shared a PNR, train or flight number (senders can check it themselves)
+function TicketBadge({ trip, size = 'md' }) {
+  if (!(trip.pnrNumber || trip.trainNumber || trip.flightNumber)) return null;
   const cls = size === 'sm' ? 'px-1.5 py-0.5 rounded-md text-[11px]' : 'px-2 py-1 rounded-lg text-[12px]';
-  if (trip.isVerified) {
-    return <span className={`inline-flex items-center gap-1 font-semibold text-emerald-700 bg-emerald-50 shrink-0 ${cls}`} title="Kabutar checked this traveller's ticket"><ShieldCheck size={size === 'sm' ? 11 : 13} /> Ticket verified</span>;
-  }
-  if (!hasTicket) return null;
-  if (isOwn) return <span className={`font-semibold text-amber-700 bg-amber-50 shrink-0 ${cls}`}>Ticket check pending</span>;
   return <span className={`font-semibold text-sky-700 bg-sky-50 shrink-0 ${cls}`}>{trip.flightNumber && !trip.pnrNumber && !trip.trainNumber ? trip.flightNumber : 'Ticket details shared'}</span>;
 }
 
@@ -184,10 +179,10 @@ https://app.kabutar.in`
                 {dep ? ` · Departs ${dep}` : ''}{arr ? ` · Arrives ${arr}` : ''}{duration ? ` (${duration})` : ''}
               </span>
             </div>
-            {(trip.pickupStation || trip.pnrNumber || trip.trainNumber || trip.flightNumber || trip.isVerified) && (
+            {(trip.pickupStation || trip.pnrNumber || trip.trainNumber || trip.flightNumber) && (
               <div className="flex items-center gap-2 text-xs text-slate-400 mt-1 min-w-0">
                 {trip.pickupStation && <span className="truncate flex items-center gap-1"><MapPin size={11} className="shrink-0" />{trip.pickupStation}</span>}
-                <TicketBadge trip={trip} isOwn={isOwn} size="sm" />
+                <TicketBadge trip={trip} size="sm" />
               </div>
             )}
           </div>
@@ -312,7 +307,7 @@ https://app.kabutar.in`
         <div className="flex items-center gap-2 mt-3 flex-wrap">
           <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">{trip.availableWeight} kg space</span>
           <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">₹{trip.pricePerKg}/kg</span>
-          <TicketBadge trip={trip} isOwn={isOwn} />
+          <TicketBadge trip={trip} />
         </div>
 
         {/* Actions */}

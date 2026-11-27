@@ -198,8 +198,8 @@ router.patch('/:id', protect, async (req, res) => {
     if (!trip) return res.status(404).json({ message: 'Trip not found or not authorized' });
 
     const body = { ...req.body };
-    // Owners can't verify their own trip or reassign it
-    delete body.isVerified; delete body.verifiedAt; delete body.userId; delete body._id;
+    // Owners can't reassign a trip or set internal flags
+    delete body.isVerified; delete body.userId; delete body._id;
     // Accept a legacy single `date` from older app builds the same way POST does —
     // without this, editing a trip's date from an un-updated app silently no-ops
     // (`date` is now a getter-only virtual on the model).
@@ -221,16 +221,6 @@ router.patch('/:id', protect, async (req, res) => {
 
     if (body.fromCity || body.toCity) {
       await assertRouteAllowed(body.fromCity || trip.fromCity, body.toCity || trip.toCity);
-    }
-
-    // Changing the route, dates or ticket details needs a fresh admin check
-    if (trip.isVerified) {
-      const norm = (v) => String(v ?? '').trim().toLowerCase();
-      const dayList = (ds) => (ds || []).map(d => new Date(d).getTime()).sort().join(',');
-      const changed = ['fromCity', 'toCity', 'pnrNumber', 'trainNumber', 'flightNumber', 'transportMode']
-        .some(k => body[k] !== undefined && norm(body[k]) !== norm(trip[k]))
-        || (Array.isArray(body.dates) && dayList(body.dates) !== dayList(trip.dates));
-      if (changed) { trip.isVerified = false; trip.verifiedAt = null; }
     }
 
     Object.assign(trip, body);

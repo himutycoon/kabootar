@@ -89,8 +89,6 @@ function PromoteForm({ onPromoted }) {
 function AdminDashboard() {
   const navigate  = useNavigate();
   const [tab,     setTab]     = useState('overview');
-  const [listingsPreset, setListingsPreset] = useState(null); // e.g. open Listings on 'ticket check'
-  const goTo = (k, preset = null) => { setListingsPreset(preset); setTab(k); };
 
 
   return (
@@ -126,13 +124,13 @@ function AdminDashboard() {
       </div>
 
       <div className="px-4 py-4">
-        {tab === 'overview'      && <Overview onNavigate={goTo} />}
+        {tab === 'overview'      && <Overview onNavigate={setTab} />}
         {tab === 'kyc'           && <KycQueue />}
         {tab === 'posts'         && <PostsManager />}
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
-        {tab === 'listings'      && <ListingsManager preset={listingsPreset} />}
+        {tab === 'listings'      && <ListingsManager />}
         {tab === 'cities'        && <CitiesManager />}
       </div>
     </div>
@@ -167,7 +165,6 @@ function Overview({ onNavigate }) {
     { label: 'Open Parcels',   value: stats.openParcels,    icon: Package,     grad: 'from-sky-500 to-blue-500',      tab: 'listings' },
     { label: 'Pending Reports',value: stats.pendingReports, icon: Flag,        grad: 'from-red-500 to-rose-500',      tab: 'reports' },
     { label: 'Launch Cities',  value: stats.launchCities,   icon: MapPin,      grad: 'from-teal-500 to-emerald-500',  tab: 'cities' },
-    { label: 'Ticket checks',  value: stats.pendingTripChecks ?? 0, icon: ShieldCheck, grad: 'from-violet-500 to-purple-500', tab: 'listings', preset: 'ticket check' },
   ];
   const f = stats.funnel;
   const funnel = f ? [
@@ -184,7 +181,7 @@ function Overview({ onNavigate }) {
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         {cards.map(c => (
-          <button key={c.label} onClick={() => c.tab && onNavigate(c.tab, c.preset)}
+          <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
             disabled={!c.tab}
             className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${c.grad} ${c.tab ? 'active:scale-[0.97] cursor-pointer' : 'cursor-default'} transition-transform`}>
             <c.icon size={16} className="opacity-80 mb-2" />
@@ -959,22 +956,20 @@ function CitiesManager() {
 }
 
 // ── Listings moderation (trips & parcels) ─────────────────────────────────────
-const TRIP_STATUSES   = ['all', 'ticket check', 'active', 'completed', 'cancelled'];
+const TRIP_STATUSES   = ['all', 'active', 'completed', 'cancelled'];
 const PARCEL_STATUSES = ['all', 'open', 'matched', 'requested', 'accepted', 'picked', 'in_transit', 'delivered', 'completed', 'cancelled'];
 
-function ListingsManager({ preset = null }) {
+function ListingsManager() {
   const [kind,    setKind]    = useState('trips'); // 'trips' | 'parcels'
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [status,  setStatus]  = useState(preset || 'all');
-  const [verifying, setVerifying] = useState(null);
+  const [status,  setStatus]  = useState('all');
   const [page,    setPage]    = useState(1);
   const [meta,    setMeta]    = useState({ total: 0, pages: 1 });
 
   const load = (pg = 1) => {
     setLoading(true);
-    const params = status === 'ticket check' ? { page: pg, verification: 'pending' } : { page: pg, status };
-    api.get(`/admin/${kind}`, { params })
+    api.get(`/admin/${kind}`, { params: { page: pg, status } })
       .then(r => { setItems(r.data[kind]); setMeta({ total: r.data.total, pages: r.data.pages }); setPage(pg); })
       .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
@@ -988,18 +983,6 @@ function ListingsManager({ preset = null }) {
       setItems(prev => prev.filter(i => i._id !== id));
       toast.success('Removed');
     } catch { toast.error('Failed to remove'); }
-  };
-
-  const verify = async (trip, verified) => {
-    setVerifying(trip._id);
-    try {
-      const { data } = await api.patch(`/admin/trips/${trip._id}/verify`, { verified });
-      setItems(prev => status === 'ticket check' && verified
-        ? prev.filter(i => i._id !== trip._id)
-        : prev.map(i => i._id === trip._id ? data.trip : i));
-      toast.success(verified ? 'Trip verified' : 'Verification removed');
-    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update'); }
-    finally { setVerifying(null); }
   };
 
   const switchKind = (k) => { setKind(k); setStatus('all'); };
@@ -1041,7 +1024,6 @@ function ListingsManager({ preset = null }) {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-sm font-bold text-stone-900 truncate">{item.fromCity} → {item.toCity}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500 capitalize">{item.status?.replace('_', ' ')}</span>
-                  {kind === 'trips' && item.isVerified && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Verified</span>}
                 </div>
                 <p className="text-[11px] text-stone-400 mt-0.5 truncate">
                   {item.userId?.name || 'Unknown'} · {item.userId?.phone || ''}
@@ -1060,12 +1042,6 @@ function ListingsManager({ preset = null }) {
                   </div>
                 )}
               </div>
-              {kind === 'trips' && (item.pnrNumber || item.trainNumber || item.flightNumber || item.isVerified) && (
-                <button onClick={() => verify(item, !item.isVerified)} disabled={verifying === item._id}
-                  className={`shrink-0 h-8 px-2.5 rounded-lg text-[11px] font-bold disabled:opacity-50 ${item.isVerified ? 'bg-stone-100 text-stone-600' : 'bg-emerald-500 text-white'}`}>
-                  {verifying === item._id ? '…' : item.isVerified ? 'Unverify' : 'Verify'}
-                </button>
-              )}
               <button onClick={() => remove(item._id)}
                 className="shrink-0 w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
                 <Trash2 size={13} />
