@@ -29,6 +29,8 @@ const parcelSchema = new mongoose.Schema(
     pickupOtpExpiry: { type: Date, default: null },
     deliveryOtp: { type: String, default: null },
     deliveryOtpExpiry: { type: Date, default: null },
+    neededBy: { type: Date, default: null },     // sender's preferred delivery date (optional)
+    photos:   { type: [String], default: [] },   // up to 3 photos of the parcel (Firebase Storage URLs)
     // Wrong-guess counters — a code is cancelled after too many failed attempts
     pickupOtpAttempts:   { type: Number, default: 0 },
     deliveryOtpAttempts: { type: Number, default: 0 },

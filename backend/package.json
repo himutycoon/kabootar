@@ -6,7 +6,8 @@
   "scripts": {
     "dev": "nodemon src/index.js",
     "start": "node src/index.js",
-    "migrate:trip-dates": "node scripts/migrate-trip-dates.js"
+    "migrate:trip-dates": "node scripts/migrate-trip-dates.js",
+    "test": "node --test --test-concurrency=1 \"test/*.test.js\""
   },
   "keywords": [],
   "author": "",
@@ -25,6 +26,7 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
-    "nodemon": "^3.1.14"
+    "nodemon": "^3.1.14",
+    "socket.io-client": "^4.8.3"
   }
 }

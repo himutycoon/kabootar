@@ -186,7 +186,7 @@ router.patch('/me/fcm-token', protect, async (req, res) => {
   const { subscribeTokenToTopics, unsubscribeTokenFromTopics, cityTopic } =
     require('../utils/notifications');
 
-  const user = await User.findById(req.user._id).select('fcmToken city');
+  const user = await User.findById(req.user._id).select('fcmToken city notificationPrefs');
 
   // Unsubscribe old token from topics before replacing it
   if (user?.fcmToken && user.fcmToken !== token) {
@@ -197,12 +197,38 @@ router.patch('/me/fcm-token', protect, async (req, res) => {
 
   await User.findByIdAndUpdate(req.user._id, { fcmToken: token });
 
-  // Subscribe new token to: global topic + user's city (if set)
-  const topics = ['kabutar_all'];
-  if (user?.city) topics.push(cityTopic(user.city));
+  // Subscribe new token to: global topic + user's city (if set), respecting notification settings
+  const prefs = user?.notificationPrefs || {};
+  const topics = [];
+  if (prefs.announcements !== false) topics.push('kabutar_all');
+  if (user?.city && prefs.routeAlerts !== false) topics.push(cityTopic(user.city));
   await subscribeTokenToTopics(token, topics);
 
   res.json({ ok: true });
+});
+
+// PATCH /api/auth/me/notification-prefs — { messages?, parcelUpdates?, routeAlerts?, announcements? }
+router.patch('/me/notification-prefs', protect, async (req, res) => {
+  try {
+    const KEYS = ['messages', 'parcelUpdates', 'routeAlerts', 'announcements'];
+    const user = await User.findById(req.user._id).select('notificationPrefs fcmToken city');
+    const before = { ...(user.notificationPrefs?.toObject?.() || user.notificationPrefs || {}) };
+    for (const k of KEYS) {
+      if (typeof req.body?.[k] === 'boolean') user.notificationPrefs[k] = req.body[k];
+    }
+    await user.save();
+
+    // Topic pushes can't be filtered per user, so (un)subscribe the device instead
+    if (user.fcmToken) {
+      const { subscribeTokenToTopics, unsubscribeTokenFromTopics, cityTopic } = require('../utils/notifications');
+      const sync = async (on, topics) => (on ? subscribeTokenToTopics : unsubscribeTokenFromTopics)(user.fcmToken, topics).catch(() => {});
+      if (before.announcements !== user.notificationPrefs.announcements) await sync(user.notificationPrefs.announcements, ['kabutar_all']);
+      if (before.routeAlerts !== user.notificationPrefs.routeAlerts && user.city) await sync(user.notificationPrefs.routeAlerts, [cityTopic(user.city)]);
+    }
+    res.json({ notificationPrefs: user.notificationPrefs });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
 });
 
 // POST /api/auth/me/fcm-subscribe — subscribe device to extra topics (e.g. frequent route)

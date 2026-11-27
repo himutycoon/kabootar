@@ -4,6 +4,37 @@ const router = express.Router();
 const Parcel = require('../models/Parcel');
 const { protect, optionalAuth } = require('../middleware/auth');
 const { upload, storeUpload } = require('../utils/upload');
+const { notifyRouteAlerts } = require('../utils/routeAlerts');
+
+// Optional preferred delivery date: must be a valid date, today or later
+function parseNeededBy(v) {
+  if (v === undefined) return undefined;
+  if (v === null || v === '') return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return 'invalid';
+  const sod = new Date(); sod.setHours(0, 0, 0, 0);
+  return d < sod ? 'invalid' : d;
+}
+const MAX_PHOTOS = 3;
+
+// After a delivery completes, ask both people to review each other
+function promptReviews(parcel, senderId) {
+  const travelerId = parcel.travelerId?._id || parcel.travelerId;
+  if (!travelerId) return;
+  const route = `${parcel.fromCity} → ${parcel.toCity}`;
+  notify(senderId, {
+    title: 'How did your delivery go?',
+    body:  `Leave a review for your traveller on ${route}. Reviews help others decide who to trust.`,
+    type:  'parcel',
+    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels' },
+  }).catch(() => {});
+  notify(travelerId, {
+    title: 'Review your sender',
+    body:  `Your delivery ${route} is complete. Leave a review for the sender.`,
+    type:  'parcel',
+    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels' },
+  }).catch(() => {});
+}
 const { notify } = require('../utils/notifications');
 const { assertRouteAllowed } = require('../utils/serviceCities');
 const { escapeRegex } = require('../utils/regex');
@@ -62,6 +93,8 @@ router.get('/my', protect, async (req, res) => {
 router.post('/', protect, async (req, res) => {
   try {
     const { fromCity, toCity, weight, itemType, description, pickupStation, dropStation } = req.body;
+    const neededBy = parseNeededBy(req.body.neededBy);
+    if (neededBy === 'invalid') return res.status(400).json({ message: 'Preferred date must be today or later' });
 
     if (!fromCity || !toCity || !weight || !itemType || !description) {
       return res.status(400).json({ message: 'All required fields must be provided' });
@@ -84,6 +117,7 @@ router.post('/', protect, async (req, res) => {
       description,
       pickupStation: pickupStation || '',
       dropStation: dropStation || '',
+      neededBy: neededBy || null,
     });
 
     await parcel.populate('userId', 'name profileImage maskedPhone rating kycStatus');
@@ -92,6 +126,13 @@ router.post('/', protect, async (req, res) => {
     const { sendToTopic, cityTopic, routeTopic } = require('../utils/notifications');
     const itemEmoji = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
     setImmediate(() => {
+      // Travellers who asked to be alerted about parcels on this route
+      notifyRouteAlerts({
+        kind: 'parcels', fromCity, toCity, excludeUserId: req.user._id,
+        title: `New parcel request: ${fromCity} → ${toCity}`,
+        body:  `${weight} kg of ${itemType} needs a traveller on your route.`,
+        data:  { parcelId: String(parcel._id), screen: '/parcels' },
+      }).catch(() => {});
       sendToTopic(cityTopic(fromCity), {
         title: `📦 Parcel needs a carrier: ${fromCity} → ${toCity}`,
         body:  `${itemEmoji[itemType] || '📦'} ${itemType} · ${weight}kg — earn by carrying this`,
@@ -247,6 +288,43 @@ router.post('/:id/delivery-photo', protect, upload.single('photo'), async (req, 
   }
 });
 
+// POST /api/parcels/:id/photos — sender adds photos of the parcel (max 3 in total)
+router.post('/:id/photos', protect, upload.array('photos', MAX_PHOTOS), async (req, res) => {
+  try {
+    const parcel = await Parcel.findById(req.params.id);
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    if (parcel.userId.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Only the sender can add photos' });
+    const files = (req.files || []).filter(f => f.mimetype.startsWith('image/'));
+    if (!files.length) return res.status(400).json({ message: 'Add at least one image' });
+    if ((parcel.photos?.length || 0) + files.length > MAX_PHOTOS) {
+      return res.status(400).json({ message: `A parcel can have up to ${MAX_PHOTOS} photos` });
+    }
+    const urls = await Promise.all(files.map(f => storeUpload(f, `parcel-photos/${parcel._id}`)));
+    parcel.photos = [...(parcel.photos || []), ...urls];
+    await parcel.save();
+    res.json({ parcel });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
+// DELETE /api/parcels/:id/photos — { url } sender removes one photo
+router.delete('/:id/photos', protect, async (req, res) => {
+  try {
+    const parcel = await Parcel.findById(req.params.id);
+    if (!parcel) return res.status(404).json({ message: 'Parcel not found' });
+    if (parcel.userId.toString() !== req.user._id.toString()) return res.status(403).json({ message: 'Only the sender can remove photos' });
+    const url = req.body?.url;
+    if (!parcel.photos.includes(url)) return res.status(404).json({ message: 'Photo not found' });
+    parcel.photos = parcel.photos.filter(p => p !== url);
+    await parcel.save();
+    require('../utils/accountDeletion').deleteStorageFile(url).catch(() => {});
+    res.json({ parcel });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 // PATCH /api/parcels/:id
 router.patch('/:id', protect, async (req, res) => {
   try {
@@ -263,6 +341,11 @@ router.patch('/:id', protect, async (req, res) => {
         await assertRouteAllowed(req.body.fromCity || parcel.fromCity, req.body.toCity || parcel.toCity);
       }
       const ownerFields = ['fromCity', 'toCity', 'weight', 'itemType', 'description', 'pickupStation', 'dropStation', 'offeredPrice'];
+      if (req.body.neededBy !== undefined) {
+        const nb = parseNeededBy(req.body.neededBy);
+        if (nb === 'invalid') return res.status(400).json({ message: 'Preferred date must be today or later' });
+        parcel.neededBy = nb;
+      }
       for (const key of ownerFields) {
         if (req.body[key] !== undefined) parcel[key] = req.body[key];
       }
@@ -326,6 +409,7 @@ router.patch('/:id/mark-delivered', protect, async (req, res) => {
       message:    '🎊 Sender confirmed your delivery! Count updated.',
     });
 
+    promptReviews(parcel, req.user._id);
     res.json({ parcel, message: 'Marked as delivered' });
   } catch (err) {
     res.status(500).json({ message: err.message });
@@ -367,6 +451,7 @@ router.post('/:id/confirm-receipt', protect, async (req, res) => {
       message:     '🎊 Sender confirmed your delivery! Delivery count updated.',
     });
 
+    promptReviews(parcel, req.user._id);
     res.json({ parcel, message: 'Receipt confirmed. Thank you!' });
   } catch (err) {
     res.status(500).json({ message: err.message });

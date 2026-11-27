@@ -6,6 +6,33 @@ const Report  = require('../models/Report');
 const { protect } = require('../middleware/auth');
 
 // GET /api/users/:id — public traveler profile
+// GET /api/users/me/earnings — deliveries completed as a traveller, with agreed prices
+router.get('/me/earnings', protect, async (req, res) => {
+  try {
+    const Parcel = require('../models/Parcel');
+    const parcels = await Parcel.find({ travelerId: req.user._id, status: 'completed' })
+      .select('fromCity toCity weight offeredPrice completedAt')
+      .sort({ completedAt: -1 })
+      .lean();
+    const priced = parcels.filter(p => typeof p.offeredPrice === 'number' && p.offeredPrice > 0);
+    const total = priced.reduce((sum, p) => sum + p.offeredPrice, 0);
+    const startOfMonth = new Date(); startOfMonth.setDate(1); startOfMonth.setHours(0, 0, 0, 0);
+    const thisMonth = priced.filter(p => p.completedAt && new Date(p.completedAt) >= startOfMonth)
+      .reduce((sum, p) => sum + p.offeredPrice, 0);
+    res.json({
+      total, thisMonth,
+      deliveries: parcels.length,
+      unpriced: parcels.length - priced.length, // completed without a price agreed in Kabutar
+      items: parcels.slice(0, 50).map(p => ({
+        _id: p._id, fromCity: p.fromCity, toCity: p.toCity, weight: p.weight,
+        amount: p.offeredPrice || null, completedAt: p.completedAt,
+      })),
+    });
+  } catch (err) {
+    res.status(500).json({ message: err.message });
+  }
+});
+
 router.get('/:id', async (req, res) => {
   try {
     const user = await User.findById(req.params.id)

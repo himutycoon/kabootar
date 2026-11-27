@@ -44,6 +44,13 @@ const userSchema = new mongoose.Schema(
     kycRejectedAt:     { type: Date },
     fcmToken:            { type: String, default: '' },
     blockedUsers:        [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+    // Push-notification settings (in-app Alerts always keep everything)
+    notificationPrefs: {
+      messages:      { type: Boolean, default: true },
+      parcelUpdates: { type: Boolean, default: true },
+      routeAlerts:   { type: Boolean, default: true },
+      announcements: { type: Boolean, default: true },
+    },
     pendingDeletion:     { type: Boolean, default: false },
     deletionRequestedAt: { type: Date, default: null },
     banned:       { type: Boolean, default: false },

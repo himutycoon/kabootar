@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { isBlockedBetween } = require('../utils/blocks');
+const { sendPush } = require('../utils/notifications');
 
 // Chat rooms are named "<idA>_<idB>" with the two user IDs sorted
 const roomMembers = (roomId) => {
@@ -97,6 +98,12 @@ const setupSocket = (io) => {
         io.to(roomId).emit('receive_message', payload);
         // Also reach the receiver's other screens (chat list badges) via their personal room
         socket.to(String(receiverId)).except(roomId).emit('receive_message', payload);
+        // Push notification (respects the receiver's notification settings)
+        User.findById(uid).select('name').lean().then(sender => sendPush(receiverId, {
+          title: sender?.name || 'New message',
+          body:  type === 'offer' ? `Offer: ₹${amount}` : type === 'image' ? 'Sent you a photo' : String(text || '').slice(0, 80),
+          data:  { type: 'message', senderId: uid },
+        })).catch(() => {});
       } catch {
         socket.emit('message_error', { message: 'Failed to send message' });
       }

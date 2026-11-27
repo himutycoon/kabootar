@@ -5,6 +5,7 @@ const Trip = require('../models/Trip');
 const Parcel = require('../models/Parcel');
 const Message = require('../models/Message');
 const AppNotification = require('../models/AppNotification');
+const RouteAlert = require('../models/RouteAlert');
 
 const GRACE_MS = 3 * 24 * 60 * 60 * 1000; // users can cancel by logging in within 3 days
 
@@ -41,14 +42,15 @@ async function purgeUser(userId) {
   const id = user._id;
 
   // Handover photos on the parcels they posted (deleted with those parcels below)
-  const ownParcels = await Parcel.find({ userId: id }).select('pickupPhotoUrl deliveryPhotoUrl').lean();
-  await Promise.all(ownParcels.flatMap(p => [deleteStorageFile(p.pickupPhotoUrl), deleteStorageFile(p.deliveryPhotoUrl)]));
+  const ownParcels = await Parcel.find({ userId: id }).select('pickupPhotoUrl deliveryPhotoUrl photos').lean();
+  await Promise.all(ownParcels.flatMap(p => [deleteStorageFile(p.pickupPhotoUrl), deleteStorageFile(p.deliveryPhotoUrl), ...(p.photos || []).map(deleteStorageFile)]));
 
   await Promise.all([
     Trip.deleteMany({ userId: id }),
     Parcel.deleteMany({ userId: id }),
     Message.deleteMany({ $or: [{ senderId: id }, { receiverId: id }] }),
     AppNotification.deleteMany({ userId: id }),
+    RouteAlert.deleteMany({ userId: id }),
     // Parcels this user was carrying for someone else go back to open so the sender isn't stuck
     Parcel.updateMany(
       { travelerId: id, status: { $in: ['requested', 'matched', 'accepted', 'picked', 'in_transit'] } },
@@ -92,4 +94,4 @@ async function purgeDueAccounts() {
   return n;
 }
 
-module.exports = { purgeUser, purgeDueAccounts, GRACE_MS };
+module.exports = { purgeUser, purgeDueAccounts, deleteStorageFile, GRACE_MS };

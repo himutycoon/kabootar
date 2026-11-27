@@ -35,6 +35,29 @@ function routeTopic(from, to) {
   return `route_${f}_${t}`;
 }
 
+// Notification text matches the app's design: no emoji in titles or bodies
+function cleanText(s) {
+  return String(s ?? '')
+    .replace(/[\p{Extended_Pictographic}\u{1F1E6}-\u{1F1FF}\u{FE0F}\u{200D}\u{20E3}]/gu, '')
+    .replace(/\s{2,}/g, ' ')
+    .trim();
+}
+
+// Push-notification categories a user can switch off (Profile → Notifications).
+// Security-critical notifications (KYC results, handover codes) always send.
+const ESSENTIAL_TYPES = new Set(['kyc', 'pickup_code', 'delivery_code', 'account']);
+function categoryFor(type) {
+  if (!type || ESSENTIAL_TYPES.has(type)) return null;
+  if (type === 'message') return 'messages';
+  if (['route_alert', 'new_trip', 'parcel_request'].includes(type)) return 'routeAlerts';
+  if (['broadcast', 'system', 'announcement'].includes(type)) return 'announcements';
+  return 'parcelUpdates';
+}
+const allows = (user, type) => {
+  const cat = categoryFor(type);
+  return !cat || user?.notificationPrefs?.[cat] !== false;
+};
+
 /** Coerce all data values to strings (FCM requirement) */
 function stringifyData(data = {}) {
   return Object.fromEntries(
@@ -62,7 +85,7 @@ function buildMessage({ token, topic, title, body, data = {}, screen = '/' }) {
         vibrate: [200, 100, 200],
         requireInteraction: false,
       },
-      fcm_options: { link: `https://app.kabutar.in${screen}` },
+      fcm_options: { link: `https://kabutar.in${screen}` },
     },
     apns: {
       payload: { aps: { sound: 'default', badge: 1 } },
@@ -107,11 +130,11 @@ function screenFor(type, data = {}) {
 async function sendPush(userId, { title, body, data = {} }) {
   if (!userId || !isReady()) return;
   try {
-    const user = await User.findById(userId).select('fcmToken');
-    if (!user?.fcmToken) return;
+    const user = await User.findById(userId).select('fcmToken notificationPrefs');
+    if (!user?.fcmToken || !allows(user, data.type)) return;
 
-    const screen = screenFor(data.type, data);
-    await admin.messaging().send(buildMessage({ token: user.fcmToken, title, body, data, screen }));
+    const screen = data.screen || screenFor(data.type, data);
+    await admin.messaging().send(buildMessage({ token: user.fcmToken, title: cleanText(title), body: cleanText(body), data, screen }));
   } catch (err) {
     if (isTokenError(err)) await clearToken(userId);
     // Never throw — push failures must not break request handlers
@@ -123,11 +146,12 @@ async function sendPush(userId, { title, body, data = {} }) {
  */
 async function sendToMany(userIds, { title, body, data = {} }) {
   if (!userIds?.length || !isReady()) return;
+  title = cleanText(title); body = cleanText(body);
   try {
-    const users = await User.find({
+    const users = (await User.find({
       _id: { $in: userIds },
       fcmToken: { $ne: '' },
-    }).select('_id fcmToken');
+    }).select('_id fcmToken notificationPrefs')).filter(u => allows(u, data.type));
 
     if (!users.length) return;
 
@@ -168,7 +192,7 @@ async function sendToTopic(topic, { title, body, data = {} }) {
   if (!topic || !isReady()) return;
   try {
     const screen = screenFor(data.type, data);
-    await admin.messaging().send(buildMessage({ topic, title, body, data, screen }));
+    await admin.messaging().send(buildMessage({ topic, title: cleanText(title), body: cleanText(body), data, screen }));
   } catch (err) {
     console.error('[Push] sendToTopic error:', topic, err.message);
   }
@@ -219,8 +243,10 @@ async function notify(userId, { title, body = '', type = 'system', data = {} }) 
   if (!userId) return;
   try {
     const AppNotification = require('../models/AppNotification');
+    title = cleanText(title); body = cleanText(body);
     await AppNotification.create({ userId, title, body, type, data });
-    await sendPush(userId, { title, body, data: { ...data, type } });
+    // data.type (e.g. pickup_code) is the more specific kind; fall back to the inbox type
+    await sendPush(userId, { title, body, data: { type, ...data } });
   } catch {}
 }
 
@@ -233,4 +259,6 @@ module.exports = {
   cityTopic,
   routeTopic,
   notify,
+  cleanText,
+  categoryFor,
 };
