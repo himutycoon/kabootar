@@ -21,9 +21,21 @@ import MobileResultsSearch from '../components/mobile/MobileResultsSearch';
 import { ScreenHeader, Segmented, CardSkeleton } from '../components/mobile/ui';
 import { m } from '../components/mobile/styles';
 import { Route, SearchX } from 'lucide-react';
+import { RouteAlertButton } from '../components/ProfileExtras';
+import OfflineNotice from '../components/OfflineNotice';
+import { saveCache, readCache, isOffline } from '../lib/offlineCache';
 
 const startOfToday = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 const PULL_THRESHOLD = 64;
+
+function AlertStrip({ from, to }) {
+  return (
+    <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5">
+      <p className="flex-1 text-[13px] text-slate-600 min-w-0">Get notified when a new trip is posted for <span className="font-semibold text-slate-900">{from} → {to}</span></p>
+      <RouteAlertButton kind="trips" fromCity={from} toCity={to} />
+    </div>
+  );
+}
 
 function LiveBadge({ time }) {
   const [label, setLabel] = useState('Just now');
@@ -66,6 +78,7 @@ export default function TripsPage() {
   const [myTrips,    setMyTrips]    = useState([]);
   const [loading,    setLoading]    = useState(false);
   const [fetchedAt,  setFetchedAt]  = useState(null);
+  const [offlineAt,  setOfflineAt]  = useState(null);
   const [tab,        setTab]        = useState(location.state?.tab === 'mine' ? 'mine' : 'all');
   const [showModal,  setShowModal]  = useState(false);
   const [editingTrip,setEditingTrip]= useState(null);
@@ -94,13 +107,27 @@ export default function TripsPage() {
       if (search.to)   params.to   = search.to;
       if (search.date) params.date = search.date;
 
-      const promises = [api.get('/trips', { params })];
-      if (user) promises.push(api.get('/trips/my'));
-      const [allRes, myRes] = await Promise.all(promises);
-      setTrips(allRes.data.trips);
-      setExactDateMatch(allRes.data.exactDateMatch !== false);
-      if (myRes) setMyTrips(myRes.data.trips);
-      setFetchedAt(Date.now());
+      const cacheKey = `trips_${search.from}|${search.to}|${search.date}`.toLowerCase();
+      try {
+        const promises = [api.get('/trips', { params })];
+        if (user) promises.push(api.get('/trips/my'));
+        const [allRes, myRes] = await Promise.all(promises);
+        setTrips(allRes.data.trips);
+        setExactDateMatch(allRes.data.exactDateMatch !== false);
+        if (myRes) { setMyTrips(myRes.data.trips); saveCache('trips_mine', myRes.data.trips); }
+        setFetchedAt(Date.now());
+        setOfflineAt(null);
+        saveCache(cacheKey, { trips: allRes.data.trips, exactDateMatch: allRes.data.exactDateMatch });
+      } catch (err) {
+        const cached = isOffline(err) ? readCache(cacheKey) : null;
+        if (cached) {
+          setTrips(cached.data.trips || []);
+          setExactDateMatch(cached.data.exactDateMatch !== false);
+          setOfflineAt(cached.at);
+        } else {
+          toast.error(isOffline(err) ? "You're offline. Check your connection." : "Couldn't load travellers. Try again.");
+        }
+      }
     } finally { setLoading(false); }
   }, [search.from, search.to, search.date, user]);
 
@@ -109,7 +136,8 @@ export default function TripsPage() {
   // "My Trips" must load even before any route search (fetchTrips exits early without one)
   useEffect(() => {
     if (!user) return;
-    api.get('/trips/my').then(r => setMyTrips(r.data.trips || [])).catch(() => {});
+    api.get('/trips/my').then(r => { setMyTrips(r.data.trips || []); saveCache('trips_mine', r.data.trips || []); })
+      .catch(err => { const c = isOffline(err) && readCache('trips_mine'); if (c) setMyTrips(c.data); });
   }, [user]);
 
   const isDesktopWeb = useDesktopWeb();
@@ -222,6 +250,10 @@ export default function TripsPage() {
               </div>
             )}
 
+            {offlineAt && !loading && <OfflineNotice at={offlineAt} onRetry={fetchTrips} />}
+            {hasSearched && !loading && search.from && search.to && (
+              <AlertStrip from={search.from} to={search.to} />
+            )}
             {search.date && !exactDateMatch && !loading && filteredTrips.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-800">
                 No travellers on {format(new Date(search.date), 'dd MMM')}. Showing other upcoming dates on this route.
@@ -303,6 +335,9 @@ export default function TripsPage() {
               onRangeChange={loc.setRange} onClear={loc.clear}
               resultCount={activeFilter !== 'all' ? filteredTrips.length : undefined} />
           )}
+
+          {offlineAt && !loading && <OfflineNotice at={offlineAt} onRetry={fetchTrips} />}
+          {hasSearched && !loading && search.from && search.to && <AlertStrip from={search.from} to={search.to} />}
 
           {!hasSearched ? (
             <div className={m.card}><EmptyState icon={Search} title="Search for travellers"

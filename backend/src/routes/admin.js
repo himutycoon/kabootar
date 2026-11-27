@@ -1,5 +1,8 @@
 const express = require('express');
 const router = express.Router();
+// Missing or empty ticket fields both mean "no ticket" ($nin null also matches missing)
+const HAS_TICKET = ['pnrNumber', 'trainNumber', 'flightNumber'].map(k => ({ [k]: { $nin: ['', null] } }));
+
 const User = require('../models/User');
 const { protect } = require('../middleware/auth');
 const { adminOnly } = require('../middleware/admin');
@@ -76,7 +79,7 @@ router.get('/stats', adminOnly, async (req, res) => {
       Parcel_.distinct('userId').then(a => a.length),
       Parcel_.distinct('userId', { status: 'completed' }).then(a => a.length),
       Trip.countDocuments({ isVerified: { $ne: true }, status: 'active',
-        $or: [{ pnrNumber: { $ne: '' } }, { trainNumber: { $ne: '' } }, { flightNumber: { $ne: '' } }] }),
+        $or: HAS_TICKET }),
     ]);
 
     res.json({
@@ -311,7 +314,7 @@ router.get('/trips', adminOnly, async (req, res) => {
     // Trips waiting for a ticket check: they shared PNR/train/flight details and aren't verified yet
     if (verification === 'pending') {
       filter.isVerified = { $ne: true };
-      filter.$or = [{ pnrNumber: { $ne: '' } }, { trainNumber: { $ne: '' } }, { flightNumber: { $ne: '' } }];
+      filter.$or = HAS_TICKET;
     }
     const [trips, total] = await Promise.all([
       Trip.find(filter)

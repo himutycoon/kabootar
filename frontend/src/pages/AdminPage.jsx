@@ -89,6 +89,8 @@ function PromoteForm({ onPromoted }) {
 function AdminDashboard() {
   const navigate  = useNavigate();
   const [tab,     setTab]     = useState('overview');
+  const [listingsPreset, setListingsPreset] = useState(null); // e.g. open Listings on 'ticket check'
+  const goTo = (k, preset = null) => { setListingsPreset(preset); setTab(k); };
 
 
   return (
@@ -124,13 +126,13 @@ function AdminDashboard() {
       </div>
 
       <div className="px-4 py-4">
-        {tab === 'overview'      && <Overview onNavigate={setTab} />}
+        {tab === 'overview'      && <Overview onNavigate={goTo} />}
         {tab === 'kyc'           && <KycQueue />}
         {tab === 'posts'         && <PostsManager />}
         {tab === 'announcements' && <AnnouncementsManager />}
         {tab === 'reports'       && <ReportsQueue />}
         {tab === 'users'         && <UserList />}
-        {tab === 'listings'      && <ListingsManager />}
+        {tab === 'listings'      && <ListingsManager preset={listingsPreset} />}
         {tab === 'cities'        && <CitiesManager />}
       </div>
     </div>
@@ -165,13 +167,24 @@ function Overview({ onNavigate }) {
     { label: 'Open Parcels',   value: stats.openParcels,    icon: Package,     grad: 'from-sky-500 to-blue-500',      tab: 'listings' },
     { label: 'Pending Reports',value: stats.pendingReports, icon: Flag,        grad: 'from-red-500 to-rose-500',      tab: 'reports' },
     { label: 'Launch Cities',  value: stats.launchCities,   icon: MapPin,      grad: 'from-teal-500 to-emerald-500',  tab: 'cities' },
+    { label: 'Ticket checks',  value: stats.pendingTripChecks ?? 0, icon: ShieldCheck, grad: 'from-violet-500 to-purple-500', tab: 'listings', preset: 'ticket check' },
   ];
+  const f = stats.funnel;
+  const funnel = f ? [
+    ['Signed up', f.signedUp],
+    ['Profile complete', f.profileComplete],
+    ['Sent ID for KYC', f.kycSubmitted],
+    ['KYC verified', f.kycVerified],
+    ['Posted a trip', f.postedTrip],
+    ['Posted a parcel', f.postedParcel],
+    ['Completed a delivery', f.completedDelivery],
+  ] : [];
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-3">
         {cards.map(c => (
-          <button key={c.label} onClick={() => c.tab && onNavigate(c.tab)}
+          <button key={c.label} onClick={() => c.tab && onNavigate(c.tab, c.preset)}
             disabled={!c.tab}
             className={`relative overflow-hidden rounded-2xl p-4 text-left text-white bg-gradient-to-br ${c.grad} ${c.tab ? 'active:scale-[0.97] cursor-pointer' : 'cursor-default'} transition-transform`}>
             <c.icon size={16} className="opacity-80 mb-2" />
@@ -182,9 +195,33 @@ function Overview({ onNavigate }) {
       </div>
 
       <div className="bg-white border border-stone-200 rounded-2xl px-4 py-3 flex items-center justify-between text-xs text-stone-500">
-        <span>👋 {stats.newUsers7d} new signup{stats.newUsers7d !== 1 ? 's' : ''} this week</span>
-        <span>🛡️ {stats.adminCount} admin{stats.adminCount !== 1 ? 's' : ''} · ❌ {stats.rejectedKyc} rejected</span>
+        <span>{stats.newUsers7d} new signup{stats.newUsers7d !== 1 ? 's' : ''} this week</span>
+        <span>{stats.adminCount} admin{stats.adminCount !== 1 ? 's' : ''} · {stats.rejectedKyc} KYC rejected</span>
       </div>
+
+      {funnel.length > 0 && (
+        <div className="bg-white border border-stone-200 rounded-2xl p-4">
+          <p className="text-sm font-bold text-stone-900">Funnel</p>
+          <p className="text-[11px] text-stone-400 mt-0.5">How many people reach each step, from our own data</p>
+          <div className="mt-3 space-y-2.5">
+            {funnel.map(([label, n], i) => {
+              const pct = f.signedUp ? Math.round((n / f.signedUp) * 100) : 0;
+              const prev = i > 0 ? funnel[i - 1][1] : null;
+              return (
+                <div key={label}>
+                  <div className="flex items-baseline justify-between text-xs">
+                    <span className="font-semibold text-stone-700">{label}</span>
+                    <span className="text-stone-500"><span className="font-bold text-stone-900">{n}</span> · {pct}%{prev ? <span className="text-stone-400"> ({Math.round((n / prev) * 100)}% of previous)</span> : null}</span>
+                  </div>
+                  <div className="h-2 bg-stone-100 rounded-full mt-1 overflow-hidden">
+                    <div className="h-full bg-orange-500 rounded-full" style={{ width: `${pct}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -922,20 +959,22 @@ function CitiesManager() {
 }
 
 // ── Listings moderation (trips & parcels) ─────────────────────────────────────
-const TRIP_STATUSES   = ['all', 'active', 'completed', 'cancelled'];
+const TRIP_STATUSES   = ['all', 'ticket check', 'active', 'completed', 'cancelled'];
 const PARCEL_STATUSES = ['all', 'open', 'matched', 'requested', 'accepted', 'picked', 'in_transit', 'delivered', 'completed', 'cancelled'];
 
-function ListingsManager() {
+function ListingsManager({ preset = null }) {
   const [kind,    setKind]    = useState('trips'); // 'trips' | 'parcels'
   const [items,   setItems]   = useState([]);
   const [loading, setLoading] = useState(true);
-  const [status,  setStatus]  = useState('all');
+  const [status,  setStatus]  = useState(preset || 'all');
+  const [verifying, setVerifying] = useState(null);
   const [page,    setPage]    = useState(1);
   const [meta,    setMeta]    = useState({ total: 0, pages: 1 });
 
   const load = (pg = 1) => {
     setLoading(true);
-    api.get(`/admin/${kind}`, { params: { page: pg, status } })
+    const params = status === 'ticket check' ? { page: pg, verification: 'pending' } : { page: pg, status };
+    api.get(`/admin/${kind}`, { params })
       .then(r => { setItems(r.data[kind]); setMeta({ total: r.data.total, pages: r.data.pages }); setPage(pg); })
       .catch(() => toast.error('Failed to load'))
       .finally(() => setLoading(false));
@@ -949,6 +988,18 @@ function ListingsManager() {
       setItems(prev => prev.filter(i => i._id !== id));
       toast.success('Removed');
     } catch { toast.error('Failed to remove'); }
+  };
+
+  const verify = async (trip, verified) => {
+    setVerifying(trip._id);
+    try {
+      const { data } = await api.patch(`/admin/trips/${trip._id}/verify`, { verified });
+      setItems(prev => status === 'ticket check' && verified
+        ? prev.filter(i => i._id !== trip._id)
+        : prev.map(i => i._id === trip._id ? data.trip : i));
+      toast.success(verified ? 'Trip verified' : 'Verification removed');
+    } catch (err) { toast.error(err.response?.data?.message || 'Failed to update'); }
+    finally { setVerifying(null); }
   };
 
   const switchKind = (k) => { setKind(k); setStatus('all'); };
@@ -990,13 +1041,31 @@ function ListingsManager() {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <span className="text-sm font-bold text-stone-900 truncate">{item.fromCity} → {item.toCity}</span>
                   <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-stone-100 text-stone-500 capitalize">{item.status?.replace('_', ' ')}</span>
+                  {kind === 'trips' && item.isVerified && <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Verified</span>}
                 </div>
                 <p className="text-[11px] text-stone-400 mt-0.5 truncate">
                   {item.userId?.name || 'Unknown'} · {item.userId?.phone || ''}
                   {kind === 'trips' ? ` · ${item.transportMode}` : ` · ${item.itemType}, ${item.weight}kg`}
                   {item.createdAt && ` · ${format(new Date(item.createdAt), 'dd MMM yy')}`}
                 </p>
+                {kind === 'trips' && (item.pnrNumber || item.trainNumber || item.flightNumber) && (
+                  <div className="mt-1.5 flex items-center gap-2 flex-wrap text-[11px]">
+                    {item.pnrNumber && (
+                      <a href={`https://enquiry.indianrail.gov.in/mntes/?pnr=${item.pnrNumber}`} target="_blank" rel="noopener noreferrer"
+                        className="font-mono font-semibold text-sky-700 bg-sky-50 px-1.5 py-0.5 rounded inline-flex items-center gap-1">PNR {item.pnrNumber} <ExternalLink size={10} /></a>
+                    )}
+                    {item.trainNumber && <span className="font-mono font-semibold text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded">Train {item.trainNumber}</span>}
+                    {item.flightNumber && <span className="font-mono font-semibold text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded">Flight {item.flightNumber}</span>}
+                    {item.dates?.[0] && <span className="text-stone-500">Travels {item.dates.map(d => format(new Date(d), 'dd MMM')).join(', ')}</span>}
+                  </div>
+                )}
               </div>
+              {kind === 'trips' && (item.pnrNumber || item.trainNumber || item.flightNumber || item.isVerified) && (
+                <button onClick={() => verify(item, !item.isVerified)} disabled={verifying === item._id}
+                  className={`shrink-0 h-8 px-2.5 rounded-lg text-[11px] font-bold disabled:opacity-50 ${item.isVerified ? 'bg-stone-100 text-stone-600' : 'bg-emerald-500 text-white'}`}>
+                  {verifying === item._id ? '…' : item.isVerified ? 'Unverify' : 'Verify'}
+                </button>
+              )}
               <button onClick={() => remove(item._id)}
                 className="shrink-0 w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center">
                 <Trash2 size={13} />

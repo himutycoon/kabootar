@@ -26,13 +26,13 @@ function promptReviews(parcel, senderId) {
     title: 'How did your delivery go?',
     body:  `Leave a review for your traveller on ${route}. Reviews help others decide who to trust.`,
     type:  'parcel',
-    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels' },
+    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels?tab=history' },
   }).catch(() => {});
   notify(travelerId, {
     title: 'Review your sender',
     body:  `Your delivery ${route} is complete. Leave a review for the sender.`,
     type:  'parcel',
-    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels' },
+    data:  { type: 'review_prompt', parcelId: String(parcel._id), screen: '/my-parcels?tab=history' },
   }).catch(() => {});
 }
 const { notify } = require('../utils/notifications');
@@ -80,8 +80,8 @@ router.get('/my', protect, async (req, res) => {
     const parcels = await Parcel.find({
       $or: [{ userId: req.user._id }, { travelerId: req.user._id }],
     })
-      .populate('userId', 'name maskedPhone rating kycStatus')
-      .populate('travelerId', 'name maskedPhone rating kycStatus')
+      .populate('userId', 'name maskedPhone rating kycStatus profileImage')
+      .populate('travelerId', 'name maskedPhone rating kycStatus profileImage')
       .sort({ createdAt: -1 });
     res.json({ parcels });
   } catch (err) {

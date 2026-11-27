@@ -1,13 +1,15 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
 import { formatDistanceToNow } from 'date-fns';
-import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle, History } from 'lucide-react';
+import { MessageCircle, ChevronDown, ChevronUp, Camera, Trash2, Edit2, CheckCircle2, AlertTriangle, History, Star } from 'lucide-react';
 import ParcelStatusTimeline from '../components/ParcelStatusTimeline';
 import OtpVerifyModal from '../components/OtpVerifyModal';
 import HandoverCodeCard from '../components/HandoverCodeCard';
+import RatingModal from '../components/RatingModal';
+import { PhotoStrip } from '../components/ParcelCard';
 import PostParcelModal from '../components/PostParcelModal';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, PageHeader, Tabs, EmptyState, Avatar, Pill } from '../components/desktop/ui';
@@ -113,7 +115,9 @@ export default function MyParcelsPage() {
   const [confirming, setConfirming] = useState({});
   const [marking,    setMarking]    = useState({});
   const isDesktopWeb = useDesktopWeb();
-  const [deskTab, setDeskTab] = useState('active');
+  const [searchParams] = useSearchParams();
+  const [deskTab, setDeskTab] = useState(searchParams.get('tab') === 'history' ? 'history' : 'active');
+  const [reviewing, setReviewing] = useState(null); // { parcel, partner }
 
   const markDelivered = async (parcelId) => {
     if (!confirm('Mark this parcel as delivered? This will complete the transaction and update the traveller\'s delivery count.')) return;
@@ -206,6 +210,8 @@ export default function MyParcelsPage() {
             {list.map(parcel => {
               const ItemIcon = DESK_ITEM_ICON[parcel.itemType] || Package;
               const asTrav = isTraveler(parcel);
+              const partner = asTrav ? parcel.userId : parcel.travelerId;
+              const canReview = partner && typeof partner === 'object' && !(asTrav ? parcel.travelerReviewed : parcel.senderReviewed);
               return (
                 <div key={parcel._id} className={`flex items-center gap-3 ${isDesktopWeb ? 'px-5 py-4 gap-4' : 'p-4'}`}>
                   <span className="w-10 h-10 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center"><ItemIcon size={18} /></span>
@@ -214,7 +220,11 @@ export default function MyParcelsPage() {
                     <span className="block text-xs text-slate-500 mt-0.5">{asTrav ? 'Carried' : 'Sent'} · {parcel.weight} kg{parcel.offeredPrice ? ` · ₹${parcel.offeredPrice}` : ''}</span>
                   </span>
                   {isDesktopWeb && <span className="text-xs text-slate-400">{parcel.completedAt ? formatDistanceToNow(new Date(parcel.completedAt), { addSuffix: true }) : ''}</span>}
-                  <Pill tone="green"><CheckCircle2 size={12} /> {isDesktopWeb ? 'Completed' : 'Done'}</Pill>
+                  {canReview ? (
+                    <button type="button" onClick={() => setReviewing({ parcel, partner })} className={`${btn.primary} ${btn.sm} shrink-0`}>
+                      <Star size={14} /> Review
+                    </button>
+                  ) : <Pill tone="green"><CheckCircle2 size={12} /> {isDesktopWeb ? 'Completed' : 'Done'}</Pill>}
                 </div>
               );
             })}
@@ -245,6 +255,7 @@ export default function MyParcelsPage() {
                           {parcel.weight} kg{parcel.offeredPrice ? ` · ₹${parcel.offeredPrice} agreed` : ''}{parcel.pickupStation ? ` · ${parcel.pickupStation}` : ''} · posted {formatDistanceToNow(new Date(parcel.createdAt), { addSuffix: true })}
                         </p>
                         {parcel.description && <p className="text-[13px] text-slate-600 mt-2">{parcel.description}</p>}
+                        {parcel.photos?.length > 0 && <div className="mt-2.5"><PhotoStrip photos={parcel.photos} size={52} /></div>}
                       </div>
                     </div>
 
@@ -328,6 +339,11 @@ export default function MyParcelsPage() {
           </div>
         )}
 
+        {reviewing && (
+          <RatingModal partner={reviewing.partner} parcelId={reviewing.parcel._id} onClose={() => setReviewing(null)}
+            onSubmitted={() => setParcels(prev => prev.map(p => p._id !== reviewing.parcel._id ? p
+              : { ...p, [isTraveler(p) ? 'travelerReviewed' : 'senderReviewed']: true }))} />
+        )}
         {otpModal && <OtpVerifyModal parcel={otpModal.parcel} type={otpModal.type} onClose={() => setOtpModal(null)} onSuccess={handleOtpSuccess} />}
         {editingParcel && <PostParcelModal initialData={editingParcel} parcelId={editingParcel._id} onClose={() => setEditingParcel(null)} onSuccess={handleEditSuccess} />}
       </div>

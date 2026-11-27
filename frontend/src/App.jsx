@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import { Capacitor } from '@capacitor/core';
@@ -9,22 +9,23 @@ import Layout from './components/Layout';
 import SplashScreen from './components/SplashScreen';
 import LoginPage from './pages/LoginPage';
 import Dashboard from './pages/Dashboard';
-import TripsPage from './pages/TripsPage';
-import ParcelsPage from './pages/ParcelsPage';
-import ChatListPage from './pages/ChatListPage';
-import ChatPage from './pages/ChatPage';
-import ProfilePage from './pages/ProfilePage';
-import MyParcelsPage from './pages/MyParcelsPage';
-import KYCPage from './pages/KYCPage';
-import CompleteProfilePage from './pages/CompleteProfilePage';
-import AdminPage from './pages/AdminPage';
-import ExplorePage from './pages/ExplorePage';
-import NotificationsPage from './pages/NotificationsPage';
-import DeleteAccountPage from './pages/DeleteAccountPage';
+const TripsPage = lazy(() => import('./pages/TripsPage'));
+const ParcelsPage = lazy(() => import('./pages/ParcelsPage'));
+const ChatListPage = lazy(() => import('./pages/ChatListPage'));
+const ChatPage = lazy(() => import('./pages/ChatPage'));
+const ProfilePage = lazy(() => import('./pages/ProfilePage'));
+const MyParcelsPage = lazy(() => import('./pages/MyParcelsPage'));
+const KYCPage = lazy(() => import('./pages/KYCPage'));
+const CompleteProfilePage = lazy(() => import('./pages/CompleteProfilePage'));
+const AdminPage = lazy(() => import('./pages/AdminPage'));
+const ExplorePage = lazy(() => import('./pages/ExplorePage'));
+const NotificationsPage = lazy(() => import('./pages/NotificationsPage'));
+const DeleteAccountPage = lazy(() => import('./pages/DeleteAccountPage'));
 import LandingPage from './pages/LandingPage';
-import TermsPage from './pages/TermsPage';
-import PrivacyPage from './pages/PrivacyPage';
+const TermsPage = lazy(() => import('./pages/TermsPage'));
+const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 import { handleBackOverlay } from './lib/backStack';
+import KabutarLoader from './components/KabutarLoader';
 
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
@@ -86,6 +87,7 @@ function AppRoutes() {
   return (
     <>
       <AndroidBackHandler />
+      <Suspense fallback={<KabutarLoader fullPage text={null} />}>
       <Routes>
         {/* Landing page at root — smart gate: guests see landing, users go to /app */}
         <Route path="/" element={<LandingGate />} />
@@ -109,6 +111,7 @@ function AppRoutes() {
         <Route path="/admin" element={<AdminPage />} />
         <Route path="*" element={<Navigate to="/app" replace />} />
       </Routes>
+      </Suspense>
     </>
   );
 }
@@ -160,7 +163,7 @@ export default function App() {
                 color: '#fafaf9',
                 borderRadius: '12px',
                 fontSize: '14px',
-                fontFamily: 'Sora, sans-serif',
+                fontFamily: 'Inter, sans-serif',
               },
               success: { iconTheme: { primary: '#f97316', secondary: '#fff' } },
             }}

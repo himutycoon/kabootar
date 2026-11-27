@@ -5,7 +5,7 @@ import { useAuthGate } from '../hooks/useAuthGate';
 import { format } from 'date-fns';
 import {
   Star, CheckCircle2, MapPin, MessageCircle, ExternalLink, Shield, TrainFront, Plane, Bus, Car,
-  ChevronRight, Share2, CalendarDays, Clock, StickyNote,
+  ChevronRight, Share2, CalendarDays, Clock, StickyNote, ShieldCheck,
 } from 'lucide-react';
 import { getTripDates, formatTripDatesLong } from '../lib/tripDates';
 import { Sheet } from './mobile/ui';
@@ -117,6 +117,16 @@ export default function TripDetailModal({ trip, onClose }) {
                 {tripDates.map(d => (
                   <span key={d.toISOString()} className="text-[12px] font-semibold bg-slate-100 text-slate-700 px-2 py-1 rounded-md">{format(d, 'd MMM')}</span>
                 ))}
+              </div>
+            </div>
+          )}
+
+          {trip.isVerified && (
+            <div className="border border-emerald-200 bg-emerald-50/60 rounded-2xl p-4 flex gap-3">
+              <ShieldCheck size={20} className="text-emerald-600 shrink-0 mt-0.5" />
+              <div>
+                <p className="text-[14px] font-semibold text-slate-900">Ticket verified by Kabutar</p>
+                <p className="text-[13px] text-slate-600 mt-0.5">We checked this traveller's ticket matches the route and date.</p>
               </div>
             </div>
           )}

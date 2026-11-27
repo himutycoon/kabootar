@@ -1,12 +1,14 @@
-import { createElement, useState } from 'react';
+import { createElement, useEffect, useRef, useState } from 'react';
+import { format } from 'date-fns';
 import api from '../lib/api';
 import toast from 'react-hot-toast';
-import { ArrowLeft, Scale, FileText, Smartphone, Shirt, Package, Ban, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Scale, FileText, Smartphone, Shirt, Package, Ban, CheckCircle2, ImagePlus, X } from 'lucide-react';
+import { shrinkImage } from '../lib/image';
 import CityInput from './CityInput';
 import StationSelect from './StationSelect';
 import WeightCalculator from './WeightCalculator';
 import { useServiceArea } from '../context/ServiceAreaContext';
-import { Sheet, StepProgress, Field } from './mobile/ui';
+import { Sheet, StepProgress, Field, PickerInput } from './mobile/ui';
 import { m } from './mobile/styles';
 
 const STEPS = ['Route', 'Parcel', 'Weight & price', 'Review'];
@@ -14,6 +16,8 @@ const ITEM_TYPES = [
   ['documents', 'Documents', FileText], ['electronics', 'Electronics', Smartphone],
   ['clothes', 'Clothes', Shirt], ['others', 'Other', Package],
 ];
+const MAX_PHOTOS = 3;
+const todayStr = () => format(new Date(), 'yyyy-MM-dd');
 const PROHIBITED_ITEMS = [
   'Cash or currency',
   'Liquids & flammable goods',
@@ -38,7 +42,14 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
     itemType:     initialData?.itemType      || 'documents',
     description:  initialData?.description   || '',
     offeredPrice: initialData?.offeredPrice ? String(initialData.offeredPrice) : '',
+    neededBy:     initialData?.neededBy ? format(new Date(initialData.neededBy), 'yyyy-MM-dd') : '',
   });
+  // Photos already saved (edit mode) and new ones picked in this session
+  const [savedPhotos, setSavedPhotos] = useState(initialData?.photos || []);
+  const [newPhotos,   setNewPhotos]   = useState([]); // [{ file, url }]
+  const photoInput = useRef(null);
+  const previewUrls = useRef(new Set());
+  useEffect(() => () => previewUrls.current.forEach(u => URL.revokeObjectURL(u)), []);
   const [errors,   setErrors]   = useState({});
   const [loading,  setLoading]  = useState(false);
   const [agreed,   setAgreed]   = useState(isEdit); // skip the checkbox when editing
@@ -58,6 +69,7 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
     () => {
       const e = {};
       if (!form.description.trim()) e.description = 'Describe what you are sending';
+      if (form.neededBy && form.neededBy < todayStr()) e.neededBy = 'Choose today or a later date';
       setErrors(er => ({ ...er, ...e })); return !Object.keys(e).length;
     },
     () => {
@@ -84,6 +96,7 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
         description:   form.description,
         pickupStation: form.fromStation,
         dropStation:   form.toStation,
+        neededBy:      form.neededBy || null,
       };
       const price = form.offeredPrice === '' ? null : +form.offeredPrice;
       let parcel;
@@ -97,6 +110,16 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
           catch { toast('Request posted, but your price wasn’t saved — you can add it by editing the request.'); }
         }
       }
+      if (newPhotos.length) {
+        try {
+          const fd = new FormData();
+          for (const p of newPhotos) fd.append('photos', await shrinkImage(p.file));
+          const { data } = await api.post(`/parcels/${parcel._id}/photos`, fd);
+          parcel = { ...parcel, photos: data.parcel.photos };
+        } catch (err) {
+          toast.error(err.response?.data?.message || 'Request saved, but the photos didn’t upload. Add them by editing the request.');
+        }
+      }
       if (isEdit) { toast.success('Parcel request updated'); onSuccess(parcel); }
       else setPosted(parcel);
     } catch (err) {
@@ -105,6 +128,27 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
   };
 
   const close = () => (posted ? onSuccess(posted) : onClose());
+
+  const pickPhotos = (e) => {
+    const room = MAX_PHOTOS - savedPhotos.length - newPhotos.length;
+    const files = [...(e.target.files || [])].filter(f => f.type.startsWith('image/')).slice(0, room);
+    e.target.value = '';
+    if (!files.length) return;
+    const added = files.map(file => ({ file, url: URL.createObjectURL(file) }));
+    added.forEach(p => previewUrls.current.add(p.url));
+    setNewPhotos(prev => [...prev, ...added]);
+  };
+  const removeNew = (url) => {
+    URL.revokeObjectURL(url); previewUrls.current.delete(url);
+    setNewPhotos(prev => prev.filter(p => p.url !== url));
+  };
+  const removeSaved = async (url) => {
+    try {
+      await api.delete(`/parcels/${parcelId}/photos`, { data: { url } });
+      setSavedPhotos(prev => prev.filter(u => u !== url));
+    } catch { toast.error('Couldn’t remove the photo'); }
+  };
+  const photoCount = savedPhotos.length + newPhotos.length;
   const itemLabel = ITEM_TYPES.find(([k]) => k === form.itemType)?.[1];
 
   if (posted) {
@@ -189,6 +233,27 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
               <textarea className={m.textarea} rows={4} placeholder="e.g. Sealed envelope with two documents, A4 size"
                 value={form.description} onChange={e => set('description', e.target.value)} />
             </Field>
+            <Field label={`Photos (optional, up to ${MAX_PHOTOS})`} hint="Travellers trust requests with a clear photo of the packed parcel">
+              <div className="flex gap-2 flex-wrap">
+                {savedPhotos.map(url => (
+                  <PhotoThumb key={url} url={url} onRemove={() => removeSaved(url)} />
+                ))}
+                {newPhotos.map(p => (
+                  <PhotoThumb key={p.url} url={p.url} onRemove={() => removeNew(p.url)} />
+                ))}
+                {photoCount < MAX_PHOTOS && (
+                  <button type="button" onClick={() => photoInput.current?.click()}
+                    className="w-20 h-20 rounded-xl border border-dashed border-slate-300 text-slate-500 flex flex-col items-center justify-center gap-1 text-[11px] font-semibold active:bg-slate-50 hover:bg-slate-50">
+                    <ImagePlus size={20} /> Add photo
+                  </button>
+                )}
+              </div>
+              <input ref={photoInput} type="file" accept="image/*" multiple className="hidden" onChange={pickPhotos} />
+            </Field>
+            <Field label="Needed by (optional)" error={errors.neededBy} hint="The latest date it should reach the delivery city">
+              <PickerInput type="date" min={todayStr()} value={form.neededBy} placeholder="Any date"
+                className={m.input} onChange={e => set('neededBy', e.target.value)} />
+            </Field>
           </>
         )}
 
@@ -229,7 +294,8 @@ export default function PostParcelModal({ onClose, onSuccess, initialData = null
             <div className="border border-slate-200 rounded-2xl divide-y divide-slate-100 overflow-hidden">
               <ReviewRow label="Route" onEdit={() => setStep(0)} value={`${form.fromCity} → ${form.toCity}`}
                 sub={[form.fromStation && `Pickup: ${form.fromStation}`, form.toStation && `Drop-off: ${form.toStation}`].filter(Boolean).join(' · ') || undefined} />
-              <ReviewRow label="Parcel" onEdit={() => setStep(1)} value={itemLabel} sub={form.description} />
+              <ReviewRow label="Parcel" onEdit={() => setStep(1)} value={itemLabel}
+                sub={[form.description, photoCount && `${photoCount} photo${photoCount === 1 ? '' : 's'}`, form.neededBy && `Needed by ${format(new Date(form.neededBy), 'd MMM yyyy')}`].filter(Boolean).join(' · ')} />
               <ReviewRow label="Weight & price" onEdit={() => setStep(2)}
                 value={`${form.weight} kg`} sub={form.offeredPrice ? `You offer ₹${form.offeredPrice}` : 'Price to be agreed in chat'} />
             </div>
@@ -264,5 +330,17 @@ function ReviewRow({ label, value, sub, onEdit }) {
       </span>
       <span className="text-[13px] font-semibold text-kb-600 pt-0.5">Edit</span>
     </button>
+  );
+}
+
+function PhotoThumb({ url, onRemove }) {
+  return (
+    <span className="relative w-20 h-20 rounded-xl overflow-hidden bg-slate-100 border border-slate-200">
+      <img src={url} alt="Parcel" className="w-full h-full object-cover" />
+      <button type="button" onClick={onRemove} aria-label="Remove photo"
+        className="absolute top-1 right-1 w-6 h-6 rounded-full bg-slate-900/70 text-white flex items-center justify-center">
+        <X size={13} />
+      </button>
+    </span>
   );
 }

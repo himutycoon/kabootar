@@ -19,8 +19,20 @@ import MobileResultsSearch from '../components/mobile/MobileResultsSearch';
 import { ScreenHeader, Segmented, CardSkeleton } from '../components/mobile/ui';
 import { m } from '../components/mobile/styles';
 import { Package, SearchX } from 'lucide-react';
+import { RouteAlertButton } from '../components/ProfileExtras';
+import OfflineNotice from '../components/OfflineNotice';
+import { saveCache, readCache, isOffline } from '../lib/offlineCache';
 
 const PULL_THRESHOLD = 64;
+
+function AlertStrip({ from, to }) {
+  return (
+    <div className="flex items-center gap-3 bg-white border border-slate-200 rounded-xl px-3.5 py-2.5">
+      <p className="flex-1 text-[13px] text-slate-600 min-w-0">Get notified when someone needs a parcel carried on <span className="font-semibold text-slate-900">{from} → {to}</span></p>
+      <RouteAlertButton kind="parcels" fromCity={from} toCity={to} />
+    </div>
+  );
+}
 
 function LiveBadge({ time }) {
   const [label, setLabel] = useState('Just now');
@@ -51,6 +63,7 @@ export default function ParcelsPage() {
   const [myParcels,   setMyParcels]   = useState([]);
   const [loading,     setLoading]     = useState(false);
   const [fetchedAt,   setFetchedAt]   = useState(null);
+  const [offlineAt,   setOfflineAt]   = useState(null);
   const [tab,         setTab]         = useState('all');
   const [showModal,    setShowModal]    = useState(false);
   const [matchParcel,  setMatchParcel]  = useState(null);
@@ -76,12 +89,21 @@ export default function ParcelsPage() {
       const params = {};
       if (search.from) params.from = search.from;
       if (search.to)   params.to   = search.to;
-      const promises = [api.get('/parcels', { params })];
-      if (user) promises.push(api.get('/parcels/my'));
-      const [allRes, myRes] = await Promise.all(promises);
-      setParcels(allRes.data.parcels);
-      if (myRes) setMyParcels(myRes.data.parcels);
-      setFetchedAt(Date.now());
+      const cacheKey = `parcels_${search.from}|${search.to}`.toLowerCase();
+      try {
+        const promises = [api.get('/parcels', { params })];
+        if (user) promises.push(api.get('/parcels/my'));
+        const [allRes, myRes] = await Promise.all(promises);
+        setParcels(allRes.data.parcels);
+        if (myRes) setMyParcels(myRes.data.parcels);
+        setFetchedAt(Date.now());
+        setOfflineAt(null);
+        saveCache(cacheKey, allRes.data.parcels);
+      } catch (err) {
+        const cached = isOffline(err) ? readCache(cacheKey) : null;
+        if (cached) { setParcels(cached.data || []); setOfflineAt(cached.at); }
+        else toast.error(isOffline(err) ? "You're offline. Check your connection." : "Couldn't load parcel requests. Try again.");
+      }
     } finally { setLoading(false); }
   }, [search.from, search.to, user]);
 
@@ -179,6 +201,9 @@ export default function ParcelsPage() {
           </div>
         )}
 
+        {tab === 'all' && offlineAt && !loading && <OfflineNotice at={offlineAt} onRetry={fetchParcels} />}
+        {tab === 'all' && hasSearched && !loading && search.from && search.to && <AlertStrip from={search.from} to={search.to} />}
+
         {!showResults ? (
           <Card><EmptyState icon={Search} title="Search parcel requests"
             body="Enter a pickup or destination city to see open requests you could carry on your trip." /></Card>
@@ -243,6 +268,9 @@ export default function ParcelsPage() {
             onRangeChange={loc.setRange} onClear={loc.clear}
             resultCount={activeFilter !== 'all' ? filtered.length : undefined} />
         )}
+
+        {tab === 'all' && offlineAt && !loading && <OfflineNotice at={offlineAt} onRetry={fetchParcels} />}
+        {tab === 'all' && hasSearched && !loading && search.from && search.to && <AlertStrip from={search.from} to={search.to} />}
 
         {tab === 'all' && !hasSearched ? (
           <div className={m.card}><EmptyState icon={Search} title="Search parcel requests"

@@ -15,6 +15,8 @@ import { Route, BadgeCheck, Search } from 'lucide-react';
 import { ScreenHeader, SectionTitle, Segmented, CardSkeleton, ErrorState } from '../components/mobile/ui';
 import { m } from '../components/mobile/styles';
 import { getTripDates } from '../lib/tripDates';
+import OfflineNotice from '../components/OfflineNotice';
+import { saveCache, readCache, isOffline } from '../lib/offlineCache';
 
 export default function ExplorePage() {
   const navigate  = useNavigate();
@@ -24,6 +26,7 @@ export default function ExplorePage() {
   const [data,       setData]       = useState(null);
   const [loading,    setLoading]    = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [offlineAt,  setOfflineAt]  = useState(null);
   const [showTrip,   setShowTrip]   = useState(false);
   const [showParcel, setShowParcel] = useState(false);
   const routerLocation = useLocation();
@@ -35,7 +38,13 @@ export default function ExplorePage() {
     try {
       const r = await api.get('/explore');
       setData(r.data);
-    } catch { /* data stays null → error state is shown */ } finally { setLoading(false); setRefreshing(false); }
+      setOfflineAt(null);
+      saveCache('explore', r.data);
+    } catch (err) {
+      // Offline: show the last feed saved on this device; otherwise data stays null → error state
+      const cached = isOffline(err) ? readCache('explore') : null;
+      if (cached) { setData(cached.data); setOfflineAt(cached.at); }
+    } finally { setLoading(false); setRefreshing(false); }
   };
 
   useEffect(() => { load(); }, []);
@@ -69,6 +78,7 @@ export default function ExplorePage() {
             <button type="button" onClick={() => authGate(() => setShowParcel(true))} className={`${btn.secondary} ${btn.lg}`}><Package size={16} /> Send a parcel</button>
             <button type="button" onClick={postTrip} className={`${btn.primary} ${btn.lg}`}><Send size={15} /> Post a trip</button>
           </>} />
+        {offlineAt && <OfflineNotice at={offlineAt} onRetry={refresh} />}
 
         <section>
           <SectionHeader title="Trending routes" sub="Routes with the most upcoming trips" />
@@ -166,6 +176,7 @@ export default function ExplorePage() {
           <RefreshCw size={19} className={refreshing ? 'animate-spin' : ''} />
         </button>} />
 
+      {offlineAt && <div className="mb-3"><OfflineNotice at={offlineAt} onRetry={refresh} /></div>}
       <div className="relative">
         <Search size={18} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
         <input className={`${m.input} pl-11`} placeholder="Filter by city or route" value={query}

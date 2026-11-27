@@ -1,5 +1,6 @@
 import { Outlet, NavLink, useNavigate, useLocation } from 'react-router-dom';
-import { useState, useEffect } from 'react';
+import KabutarLoader from './KabutarLoader';
+import { useState, useEffect, Suspense } from 'react';
 import { Home, Compass, MessageCircle, Bell, Plus, Send, Package, LogIn } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
@@ -110,7 +111,7 @@ export default function Layout() {
         <DesktopHeader chatUnread={chatUnread} notifUnread={notifUnread}
           onOpenNotifications={openAlerts} onOpenMessages={openMessages} onPost={handleFab} />
         <main className="max-w-[1280px] mx-auto px-8 py-8">
-          <Outlet />
+          <Suspense fallback={<KabutarLoader fullPage text={null} />}><Outlet /></Suspense>
         </main>
         {postModals}
       </div>
@@ -161,7 +162,7 @@ export default function Layout() {
       {/* Content — padded so nothing hides behind the bottom nav */}
       <main style={{ paddingBottom: 'calc(env(safe-area-inset-bottom,0px) + 84px)' }}>
         <div key={path} className="animate-fade-in">
-          <Outlet />
+          <Suspense fallback={<KabutarLoader fullPage text={null} />}><Outlet /></Suspense>
         </div>
       </main>
 

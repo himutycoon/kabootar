@@ -4,7 +4,6 @@ import { useNavigate } from 'react-router-dom';
 import api from '../lib/api';
 import { uploadImageToStorage } from '../lib/firebase';
 import toast from 'react-hot-toast';
-import { format } from 'date-fns';
 import { hasUpcomingDate } from '../lib/tripDates';
 import {
   Star, Phone, LogOut, Package, Send,
@@ -12,7 +11,7 @@ import {
   History, AlertCircle, Edit2, Pencil, Trash2, Train,
   Plane, Bus, Car, ChevronDown, ChevronUp, Plus,
   Settings, ChevronRight, Award, Truck, MessageCircle,
-  UserCheck, FileText, HelpCircle, Trash, Share2,
+  UserCheck, FileText, HelpCircle, Trash, Share2, Wallet, Bell, BellRing,
 } from 'lucide-react';
 import PhoneVerifyModal from '../components/PhoneVerifyModal';
 import PostTripModal from '../components/PostTripModal';
@@ -24,7 +23,10 @@ import ParcelCard from '../components/ParcelCard';
 import { useDesktopWeb } from '../hooks/useDesktopWeb';
 import { Card, Tabs, EmptyState, Avatar, Pill } from '../components/desktop/ui';
 import { btn } from '../components/desktop/styles';
-import { ListRow } from '../components/mobile/ui';
+import { ListRow, Sheet } from '../components/mobile/ui';
+import { EarningsPanel, RouteAlertsList, NotificationPrefsList } from '../components/ProfileExtras';
+import { useEarnings } from '../hooks/useEarnings';
+import { formatPhone, rupees } from '../lib/format';
 import { m } from '../components/mobile/styles';
 
 
@@ -70,10 +72,11 @@ export default function ProfilePage() {
   const [myParcels,        setMyParcels]        = useState([]);
   const [editingTrip,      setEditingTrip]      = useState(null);
   const [editingParcel,    setEditingParcel]    = useState(null);
-  const [completedParcels, setCompletedParcels] = useState([]);
 
   // ── new UI state ───────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState('trips'); // trips | parcels | settings
+  const [sheet, setSheet] = useState(null); // mobile: earnings | alerts | notifications
+  const earnings = useEarnings(!!user);
 
   useEffect(() => { refreshUser(); }, []); // eslint-disable-line
 
@@ -86,9 +89,6 @@ export default function ProfilePage() {
     api.get('/parcels/my').then(r => {
       const all = r.data.parcels || [];
       setMyParcels(all.filter(p => p.status === 'open'));
-      setCompletedParcels(all.filter(p => p.status === 'completed' && (
-        String(p.travelerId?._id || p.travelerId) === String(user._id)
-      )));
     }).catch(() => {});
   }, [user]);
 
@@ -391,19 +391,10 @@ export default function ProfilePage() {
                   ))}
                 </Card>
               )}
-              {completedParcels.length > 0 && (
+              {earnings?.deliveries > 0 && (
                 <section>
-                  <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Deliveries you've completed</h2>
-                  <Card className="divide-y divide-slate-100 overflow-hidden">
-                    {completedParcels.map(p => (
-                      <div key={p._id} className="flex items-center gap-4 px-5 py-3.5">
-                        <span className="w-9 h-9 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center"><Package size={16} /></span>
-                        <span className="flex-1 min-w-0 text-sm font-semibold text-slate-900 truncate">{p.fromCity} → {p.toCity}</span>
-                        <span className="text-xs text-slate-500">{p.offeredPrice ? `₹${p.offeredPrice} · ` : ''}{p.completedAt ? format(new Date(p.completedAt), 'dd MMM yyyy') : ''}</span>
-                        <Pill tone="green">Completed</Pill>
-                      </div>
-                    ))}
-                  </Card>
+                  <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Your earnings</h2>
+                  <Card className="overflow-hidden"><EarningsPanel data={earnings} /></Card>
                 </section>
               )}
             </div>
@@ -434,10 +425,18 @@ export default function ProfilePage() {
                 <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Account</h2>
                 <Card className="divide-y divide-slate-100 overflow-hidden">
                   <DeskSetting icon={Pencil} label="Profile details" sub="Name, hometown and bio" onClick={() => setEditing(true)} />
-                  <DeskSetting icon={Phone} label="Phone number" sub={hasRealPhone ? (user?.isPhoneVerified ? 'Verified' : 'Not verified yet') : 'Not added'} onClick={() => setShowPhoneVerify(true)} />
+                  <DeskSetting icon={Phone} label="Phone number" sub={hasRealPhone ? `${formatPhone(user.phone)} · ${user?.isPhoneVerified ? 'Verified' : 'Not verified yet'}` : 'Not added'} onClick={() => setShowPhoneVerify(true)} />
                   <DeskSetting icon={Shield} label="Identity verification" sub={kyc[0]} onClick={() => navigate('/kyc')} />
                   <DeskSetting icon={Camera} label="Profile photo" sub={hasPhoto ? 'Photo added' : 'No photo yet'} onClick={() => photoRef.current?.click()} />
                 </Card>
+              </section>
+              <section>
+                <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Notifications</h2>
+                <Card className="overflow-hidden"><NotificationPrefsList /></Card>
+              </section>
+              <section>
+                <h2 className="text-[17px] font-semibold text-slate-900 mb-3">Route alerts</h2>
+                <Card className="overflow-hidden"><RouteAlertsList /></Card>
               </section>
               {(user?.frequentRoute?.from || user?.frequentRoute?.to) && (
                 <section>
@@ -546,6 +545,17 @@ export default function ProfilePage() {
           <ListRow icon={Send} title="My trips" sub={myTrips.length ? `${myTrips.length} upcoming` : 'No upcoming trips'}
             onClick={() => navigate('/trips', { state: { tab: 'mine' } })} />
           <ListRow icon={Package} title="My parcels" sub="Sending, carrying and delivery history" onClick={() => navigate('/my-parcels')} />
+          <ListRow icon={Wallet} title="Earnings"
+            sub={earnings?.deliveries ? `${rupees(earnings.total)} from ${earnings.deliveries} ${earnings.deliveries === 1 ? 'delivery' : 'deliveries'}` : 'From parcels you carry'}
+            onClick={() => setSheet('earnings')} />
+        </div>
+      </section>
+
+      <section>
+        <p className="px-1 mb-2 text-[12px] font-semibold uppercase tracking-wider text-slate-500">Notifications</p>
+        <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>
+          <ListRow icon={Bell} title="Notification settings" sub="Choose what you get notified about" onClick={() => setSheet('notifications')} />
+          <ListRow icon={BellRing} title="Route alerts" sub="Routes you follow for new trips and parcels" onClick={() => setSheet('alerts')} />
         </div>
       </section>
 
@@ -554,7 +564,7 @@ export default function ProfilePage() {
         <div className={`${m.card} divide-y divide-slate-100 overflow-hidden`}>
           <ListRow icon={Pencil} title="Personal information" sub="Name, hometown and bio" onClick={() => setEditing(true)} />
           <ListRow icon={Phone} title="Phone number"
-            sub={hasRealPhone ? `${user.phone}${user?.isPhoneVerified ? ' · Verified' : ' · Not verified'}` : 'Not added'}
+            sub={hasRealPhone ? `${formatPhone(user.phone)}${user?.isPhoneVerified ? ' · Verified' : ' · Not verified'}` : 'Not added'}
             onClick={() => setShowPhoneVerify(true)} />
           <ListRow icon={Shield} title="Identity verification" sub={kycM[2]} onClick={() => navigate('/kyc')} />
           <ListRow icon={Camera} title="Profile photo" sub={hasPhoto ? 'Photo added' : 'No photo yet'} onClick={() => photoRef.current?.click()} />
@@ -589,6 +599,15 @@ export default function ProfilePage() {
         <ListRow icon={Trash2} title="Delete account" danger onClick={() => setShowDeleteModal(true)} right={<span />} />
       </section>
 
+      {sheet && (
+        <Sheet title={{ earnings: 'Earnings', alerts: 'Route alerts', notifications: 'Notifications' }[sheet]} onClose={() => setSheet(null)}>
+          <div className={`${m.card} overflow-hidden -mx-0`}>
+            {sheet === 'earnings' && (earnings ? <EarningsPanel data={earnings} /> : <p className="px-5 py-4 text-[13px] text-slate-500">Loading…</p>)}
+            {sheet === 'alerts' && <RouteAlertsList />}
+            {sheet === 'notifications' && <NotificationPrefsList />}
+          </div>
+        </Sheet>
+      )}
       {editSheet}
       {modals}
     </div>

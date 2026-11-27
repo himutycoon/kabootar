@@ -1,8 +1,10 @@
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useAuthGate } from '../hooks/useAuthGate';
-import { formatDistanceToNow } from 'date-fns';
-import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee, Edit2, FileText, Smartphone, Shirt, Package } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { pushBackHandler } from '../lib/backStack';
+import { formatDistanceToNow, format } from 'date-fns';
+import { MapPin, Trash2, MessageCircle, Star, Zap, CheckCircle, IndianRupee, Edit2, FileText, Smartphone, Shirt, Package, CalendarDays, Image as ImageIcon, X } from 'lucide-react';
 
 const ITEM_EMOJI = { documents: '📄', electronics: '📱', clothes: '👕', others: '📦' };
 const ITEM_LABEL = { documents: 'Documents', electronics: 'Electronics', clothes: 'Clothes', others: 'Other item' };
@@ -109,8 +111,10 @@ https://app.kabutar.in`
           <div className="text-xs text-slate-500 mt-0.5 truncate">
             {ITEM_LABEL[parcel.itemType] || 'Item'} · approx {parcel.weight} kg
             {parcel.pickupStation ? ` · ${parcel.pickupStation}` : ''}
+            {parcel.neededBy ? ` · Needed by ${format(new Date(parcel.neededBy), 'd MMM')}` : ''}
           </div>
           {parcel.description && <div className="text-xs text-slate-400 mt-0.5 truncate">{parcel.description}</div>}
+          {parcel.photos?.length > 0 && <div className="mt-2"><PhotoStrip photos={parcel.photos} size={40} /></div>}
         </div>
 
         <div className="flex items-center gap-2.5 min-w-0">
@@ -191,6 +195,7 @@ https://app.kabutar.in`
         </div>
 
         {parcel.description && <p className="text-[14px] text-slate-600 mt-3 line-clamp-2">{parcel.description}</p>}
+        {parcel.photos?.length > 0 && <div className="mt-3"><PhotoStrip photos={parcel.photos} size={64} /></div>}
         {parcel.pickupStation && (
           <p className="flex items-center gap-1.5 text-[13px] text-slate-500 mt-1.5 min-w-0"><MapPin size={13} className="shrink-0" /><span className="truncate">{parcel.pickupStation}</span></p>
         )}
@@ -200,6 +205,11 @@ https://app.kabutar.in`
           <span className="text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
             {parcel.offeredPrice ? `Offers ₹${parcel.offeredPrice}` : 'Price open'}
           </span>
+          {parcel.neededBy && (
+            <span className="inline-flex items-center gap-1 text-[13px] font-semibold text-slate-700 bg-slate-100 px-2.5 py-1 rounded-lg">
+              <CalendarDays size={13} /> By {format(new Date(parcel.neededBy), 'd MMM')}
+            </span>
+          )}
         </div>
 
         {hasSender && !isOwn && (
@@ -238,4 +248,34 @@ https://app.kabutar.in`
       </div>
     );
   }
+}
+
+// Parcel photo thumbnails; tap one to see it full screen
+export function PhotoStrip({ photos, size = 64 }) {
+  const [open, setOpen] = useState(null);
+  const isOpen = open !== null;
+  useEffect(() => (isOpen ? pushBackHandler(() => setOpen(null)) : undefined), [isOpen]);
+  return (
+    <>
+      <div className="flex gap-2" onClick={e => e.stopPropagation()}>
+        {photos.map((url, i) => (
+          <button key={url} type="button" onClick={() => setOpen(i)} aria-label={`View photo ${i + 1}`}
+            className="rounded-lg overflow-hidden bg-slate-100 border border-slate-200 shrink-0" style={{ width: size, height: size }}>
+            <img src={url} alt="" loading="lazy" className="w-full h-full object-cover" />
+          </button>
+        ))}
+      </div>
+      {open !== null && (
+        <div className="fixed inset-0 z-[80] bg-slate-950/90 flex flex-col animate-fade-in" onClick={() => setOpen(null)} role="dialog" aria-label="Parcel photo">
+          <div className="flex items-center justify-between px-4 text-white/80 text-[13px]" style={{ paddingTop: 'calc(env(safe-area-inset-top,0px) + 12px)' }}>
+            <span className="inline-flex items-center gap-1.5"><ImageIcon size={15} /> {open + 1} of {photos.length}</span>
+            <button type="button" aria-label="Close" className="w-10 h-10 -mr-2 rounded-full flex items-center justify-center text-white"><X size={22} /></button>
+          </div>
+          <div className="flex-1 flex items-center justify-center p-4 min-h-0">
+            <img src={photos[open]} alt="" className="max-w-full max-h-full object-contain rounded-lg" onClick={e => { e.stopPropagation(); setOpen((open + 1) % photos.length); }} />
+          </div>
+        </div>
+      )}
+    </>
+  );
 }
