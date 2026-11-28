@@ -142,10 +142,14 @@ export default function SplashScreen({ onDone }) {
   const [progress, setProgress] = useState(0);
 
   useEffect(() => {
-    const t1 = setTimeout(() => setPhase(2),  1400); // pigeon lands, text begins
-    const t2 = setTimeout(() => setPhase(3),  2400); // envelope + bar appear
-    const t3 = setTimeout(() => setPhase(4),  5400); // start exit
-    const t4 = setTimeout(() => onDone(),     5900); // hand off to app
+    // Full intro only the first time; later launches get a short branded flash
+    let seen = false;
+    try { seen = !!localStorage.getItem('kabutar_splash_seen'); localStorage.setItem('kabutar_splash_seen', '1'); } catch { /* storage unavailable */ }
+    const T = seen ? [250, 450, 800, 1250] : [1400, 2400, 5400, 5900];
+    const t1 = setTimeout(() => setPhase(2),  T[0]); // pigeon lands, text begins
+    const t2 = setTimeout(() => setPhase(3),  T[1]); // envelope + bar appear
+    const t3 = setTimeout(() => setPhase(4),  T[2]); // start exit
+    const t4 = setTimeout(() => onDone(),     T[3]); // hand off to app
     return () => [t1,t2,t3,t4].forEach(clearTimeout);
   }, [onDone]);
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { formatDistanceToNowStrict } from "date-fns";
 import { MessageCircle, BadgeCheck } from "lucide-react";
 import api from "../lib/api";
+import { saveCache, readCache } from "../lib/offlineCache";
 import { getSocket } from "../lib/socket";
 import { useDesktopWeb } from "../hooks/useDesktopWeb";
 import MessagesLayout from "../components/desktop/MessagesLayout";
@@ -20,12 +21,13 @@ const preview = (msg) => {
 export default function ChatListPage() {
   const navigate = useNavigate();
   const isDesktopWeb = useDesktopWeb();
-  const [conversations, setConversations] = useState([]);
-  const [state, setState] = useState("loading"); // loading | ready | error
+  const [cached] = useState(() => readCache("conversations"));
+  const [conversations, setConversations] = useState(() => cached?.data || []);
+  const [state, setState] = useState(cached ? "ready" : "loading"); // loading | ready | error
 
   const load = useCallback(() => api.get("/chat/conversations")
-    .then(r => { setConversations(r.data.conversations || []); setState("ready"); })
-    .catch(() => setState("error")), []);
+    .then(r => { setConversations(r.data.conversations || []); setState("ready"); saveCache("conversations", r.data.conversations || []); })
+    .catch(() => setState(s => (s === "ready" ? s : "error"))), []);
 
   useEffect(() => {
     if (isDesktopWeb) return undefined; // the desktop shell loads its own list

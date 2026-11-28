@@ -1,3 +1,4 @@
+import { saveCache, readCache } from '../../lib/offlineCache';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { formatDistanceToNow } from 'date-fns';
@@ -44,28 +45,30 @@ export default function MobileHome() {
   const navigate = useNavigate();
   const authGate = useAuthGate();
 
-  const [feed, setFeed] = useState({ trending: [], trips: [], parcels: [] });
-  const [feedState, setFeedState] = useState('loading');
-  const [myTrips, setMyTrips] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
-  const [posts, setPosts] = useState([]);
+  // Last-seen data shows instantly on open; fresh data replaces it a moment later
+  const [saved] = useState(() => ({ feed: readCache('explore'), ann: readCache('announcements'), posts: readCache('posts'), mine: readCache('trips_mine') }));
+  const [feed, setFeed] = useState(() => saved.feed ? { trending: saved.feed.data.trending || [], trips: saved.feed.data.trips || [], parcels: saved.feed.data.parcels || [] } : { trending: [], trips: [], parcels: [] });
+  const [feedState, setFeedState] = useState(saved.feed ? 'ready' : 'loading');
+  const [myTrips, setMyTrips] = useState(() => saved.mine?.data || []);
+  const [announcements, setAnnouncements] = useState(() => saved.ann?.data || []);
+  const [posts, setPosts] = useState(() => saved.posts?.data || []);
   const [story, setStory] = useState(null);
   const [showTrip, setShowTrip] = useState(false);
   const [showParcel, setShowParcel] = useState(false);
 
   const loadFeed = useCallback(() => api.get('/explore')
-    .then(r => { setFeed({ trending: r.data.trending || [], trips: r.data.trips || [], parcels: r.data.parcels || [] }); setFeedState('ready'); })
-    .catch(() => setFeedState('error')), []);
+    .then(r => { setFeed({ trending: r.data.trending || [], trips: r.data.trips || [], parcels: r.data.parcels || [] }); setFeedState('ready'); saveCache('explore', r.data); })
+    .catch(() => setFeedState(s => (s === 'ready' ? s : 'error'))), []);
 
   useEffect(() => {
     loadFeed();
-    api.get('/announcements').then(r => setAnnouncements(r.data.announcements || [])).catch(() => {});
-    api.get('/posts').then(r => setPosts(r.data.posts || [])).catch(() => {});
+    api.get('/announcements').then(r => { setAnnouncements(r.data.announcements || []); saveCache('announcements', r.data.announcements || []); }).catch(() => {});
+    api.get('/posts').then(r => { setPosts(r.data.posts || []); saveCache('posts', r.data.posts || []); }).catch(() => {});
   }, [loadFeed]);
 
   useEffect(() => {
     if (!user?._id) return;
-    api.get('/trips/my').then(r => setMyTrips(r.data.trips || [])).catch(() => {});
+    api.get('/trips/my').then(r => { setMyTrips(r.data.trips || []); saveCache('trips_mine', r.data.trips || []); }).catch(() => {});
   }, [user?._id]);
 
   const upcoming = useMemo(() => myTrips

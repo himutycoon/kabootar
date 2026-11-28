@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { saveCache, readCache } from '../lib/offlineCache';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import api from '../lib/api';
@@ -30,10 +31,11 @@ export default function ChatPage() {
   const navigate   = useNavigate();
   const d          = useDesktopWeb(); // desktop browser → render inside the two-pane messages shell
 
-  const [messages,       setMessages]       = useState([]);
-  const [partner,        setPartner]        = useState(null);
+  const [cachedChat] = useState(() => readCache(`chat_${userId}`));
+  const [messages,       setMessages]       = useState(() => cachedChat?.data?.messages || []);
+  const [partner,        setPartner]        = useState(() => cachedChat?.data?.partner || null);
   const [text,           setText]           = useState('');
-  const [loading,        setLoading]        = useState(true);
+  const [loading,        setLoading]        = useState(!cachedChat);
   const [showRating,     setShowRating]     = useState(false);
   const [showSafetyMenu, setShowSafetyMenu] = useState(false);
   const [activeParcel,   setActiveParcel]   = useState(null);
@@ -57,6 +59,7 @@ export default function ChatPage() {
   useEffect(() => {
     api.get(`/chat/${userId}`)
       .then(r => { setMessages(r.data.messages); setPartner(r.data.partner); })
+      .catch(() => {})
       .finally(() => setLoading(false));
     // Fetch active parcel between these two users
     api.get('/parcels/my').then(r => {
@@ -120,6 +123,13 @@ export default function ChatPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, partnerTyping]);
+
+  // Keep the latest messages on the device so reopening a chat is instant
+  useEffect(() => {
+    if (!partner || loading) return;
+    const sent = messages.filter(x => !x.sending).slice(-60);
+    if (sent.length) saveCache(`chat_${userId}`, { messages: sent, partner });
+  }, [messages, partner, loading, userId]);
 
   const emitTyping = () => {
     if (!roomId) return;
@@ -511,6 +521,9 @@ export default function ChatPage() {
           className="flex-1 min-h-[44px] bg-slate-100 border border-transparent focus:bg-white focus:border-kb-500 rounded-3xl px-4 py-2.5 text-[15px] text-slate-900 placeholder:text-slate-500 resize-none outline-none max-h-28 transition-colors"
           placeholder="Message"
           rows={1}
+          autoCapitalize="sentences"
+          autoCorrect="on"
+          enterKeyHint="enter"
           value={text}
           onChange={e => { setText(e.target.value); emitTyping(); }}
           onKeyDown={handleKey}

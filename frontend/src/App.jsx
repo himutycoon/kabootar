@@ -25,6 +25,7 @@ import LandingPage from './pages/LandingPage';
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 import { handleBackOverlay } from './lib/backStack';
+import { setPushNavigator } from './lib/pushNotifications';
 import KabutarLoader from './components/KabutarLoader';
 
 const PrivateRoute = ({ children }) => {
@@ -83,10 +84,18 @@ function AndroidBackHandler() {
   return null;
 }
 
+// Lets a tapped notification navigate inside the app without a page reload
+function PushNavBridge() {
+  const navigate = useNavigate();
+  useEffect(() => { setPushNavigator(navigate); return () => setPushNavigator(null); }, [navigate]);
+  return null;
+}
+
 function AppRoutes() {
   return (
     <>
       <AndroidBackHandler />
+      <PushNavBridge />
       <Suspense fallback={<KabutarLoader fullPage text={null} />}>
       <Routes>
         {/* Landing page at root — smart gate: guests see landing, users go to /app */}

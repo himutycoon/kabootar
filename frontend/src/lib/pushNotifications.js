@@ -154,12 +154,20 @@ function notifIcon(type) {
   return icons[type] || '🕊️';
 }
 
+// The router registers itself here so a tapped notification opens the screen
+// inside the running app instead of reloading the page.
+let routerNavigate = null;
+let pendingScreen = null;
+export function setPushNavigator(fn) {
+  routerNavigate = fn;
+  if (fn && pendingScreen) { const s = pendingScreen; pendingScreen = null; fn(s); }
+}
+
 function navigateFromData(data = {}) {
   const screen = data.screen || screenFor(data.type, data);
-  if (screen) {
-    // Use location.href for deep navigation — works even when app is cold-starting
-    window.location.href = screen;
-  }
+  if (!screen) return;
+  if (routerNavigate) routerNavigate(screen);
+  else pendingScreen = screen; // cold start: opened as soon as the router is ready
 }
 
 function screenFor(type, data = {}) {

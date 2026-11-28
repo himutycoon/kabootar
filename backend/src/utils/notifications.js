@@ -75,7 +75,6 @@ function buildMessage({ token, topic, title, body, data = {}, screen = '/' }) {
       notification: {
         sound:       'default',
         channel_id:  channelId(data.type),
-        click_action: 'FLUTTER_NOTIFICATION_CLICK',
       },
     },
     webpush: {

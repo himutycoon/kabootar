@@ -3,6 +3,7 @@ import { auth } from '../lib/firebase';
 import api from '../lib/api';
 import { connectSocket, disconnectSocket, getSocket } from '../lib/socket';
 import { initPushNotifications } from '../lib/pushNotifications';
+import { clearCache } from '../lib/offlineCache';
 
 const AuthContext = createContext(null);
 
@@ -74,6 +75,7 @@ export const AuthProvider = ({ children }) => {
     await auth.signOut().catch(() => {});
     localStorage.removeItem('kabootar_token');
     localStorage.removeItem('kabootar_user');
+    clearCache();
     disconnectSocket();
     setUser(null);
   };
@@ -86,9 +88,12 @@ export const AuthProvider = ({ children }) => {
     } catch {}
   };
 
-  // Connect socket on mount if user exists
+  // Connect socket and register push on every launch, not just right after login,
+  // so a tapped notification is handled even when the app was closed.
   useEffect(() => {
-    if (user?._id) connectSocket(user._id);
+    if (!user?._id) return;
+    connectSocket(user._id);
+    initPushNotifications(user._id).catch(() => {});
   }, [user?._id]);
 
   // Listen for real-time KYC status updates from admin

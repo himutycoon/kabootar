@@ -17,5 +17,12 @@ export function readCache(key) {
   } catch { return null; }
 }
 
+// Remove everything saved for the signed-in user (called on logout)
+export function clearCache() {
+  try {
+    Object.keys(localStorage).filter(k => k.startsWith(PREFIX)).forEach(k => localStorage.removeItem(k));
+  } catch { /* storage unavailable */ }
+}
+
 // Network failure (no response) vs. a real server error
 export const isOffline = (err) => !err?.response || (typeof navigator !== 'undefined' && navigator.onLine === false);
