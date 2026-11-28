@@ -1,5 +1,6 @@
 const express = require('express');
 const { isBlockedBetween } = require('../utils/blocks');
+const { isTrustedImageUrl } = require('../utils/safeUrl');
 const router = express.Router();
 const Message = require('../models/Message');
 const User = require('../models/User');
@@ -81,8 +82,8 @@ router.post('/:userId', protect, async (req, res) => {
     if (type !== 'image' && !text) {
       return res.status(400).json({ message: 'Text required' });
     }
-    if (type === 'image' && !imageUrl) {
-      return res.status(400).json({ message: 'imageUrl required for image messages' });
+    if (type === 'image' && !isTrustedImageUrl(imageUrl)) {
+      return res.status(400).json({ message: 'A valid image is required for image messages' });
     }
 
     if (String(req.params.userId) === String(req.user._id)) {

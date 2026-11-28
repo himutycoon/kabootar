@@ -2,6 +2,7 @@ const jwt = require('jsonwebtoken');
 const Message = require('../models/Message');
 const User = require('../models/User');
 const { isBlockedBetween } = require('../utils/blocks');
+const { isTrustedImageUrl } = require('../utils/safeUrl');
 const { sendPush } = require('../utils/notifications');
 
 // Chat rooms are named "<idA>_<idB>" with the two user IDs sorted
@@ -76,13 +77,17 @@ const setupSocket = (io) => {
         if (await isBlockedBetween(uid, receiverId)) {
           return socket.emit('message_error', { message: "You can't message this user." });
         }
+        const msgType = ['text', 'image', 'offer'].includes(type) ? type : 'text';
+        if (msgType === 'image' && !isTrustedImageUrl(imageUrl)) {
+          return socket.emit('message_error', { message: 'Invalid image' });
+        }
         const message = await Message.create({
           senderId:   uid,
           receiverId,
-          text:     text || '',
-          type:     type || 'text',
-          amount:   amount || null,
-          imageUrl: imageUrl || null,
+          text:     String(text || '').slice(0, 2000),
+          type:     msgType,
+          amount:   msgType === 'offer' && Number(amount) > 0 ? Number(amount) : null,
+          imageUrl: msgType === 'image' ? imageUrl : null,
         });
         const payload = {
           _id:       message._id,

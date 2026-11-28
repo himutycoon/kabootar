@@ -1,4 +1,5 @@
 const express = require('express');
+const { isTrustedImageUrl } = require('../utils/safeUrl');
 const router = express.Router();
 const jwt   = require('jsonwebtoken');
 const admin = require('firebase-admin');
@@ -42,8 +43,12 @@ router.post('/verify', async (req, res) => {
       const decoded = await admin.auth().verifyIdToken(idToken);
       firebaseUid = decoded.uid;
       phone = decoded.phone_number;
+    } else if (process.env.ALLOW_DEV_AUTH !== 'true') {
+      // Fail closed: without Firebase we cannot verify who this is, so never log anyone in
+      console.error('Firebase Admin is not configured; refusing to authenticate');
+      return res.status(503).json({ message: 'Sign-in is temporarily unavailable' });
     } else {
-      // Dev fallback: decode JWT without verification (NOT for production)
+      // Local development only: decode the token without verifying it
       const parts = idToken.split('.');
       if (parts.length === 3) {
         const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
@@ -97,6 +102,8 @@ router.post('/profile', async (req, res) => {
     if (admin.apps.length) {
       const decoded = await admin.auth().verifyIdToken(idToken);
       firebaseUid = decoded.uid;
+    } else if (process.env.ALLOW_DEV_AUTH !== 'true') {
+      return res.status(503).json({ message: 'Sign-in is temporarily unavailable' });
     } else {
       const parts = idToken.split('.');
       const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString());
@@ -263,8 +270,10 @@ router.post('/me/image', protect, upload.single('image'), async (req, res) => {
     let imageUrl;
     if (req.file) {
       imageUrl = await storeUpload(req.file, `profile-images/${req.user._id}`);
+    } else if (isTrustedImageUrl(req.body.imageUrl)) {
+      imageUrl = req.body.imageUrl; // photo already uploaded to our storage by the app
     } else if (req.body.imageUrl) {
-      imageUrl = req.body.imageUrl; // legacy base64 fallback
+      return res.status(400).json({ message: 'Invalid image link' });
     } else {
       return res.status(400).json({ message: 'Image file or imageUrl required' });
     }

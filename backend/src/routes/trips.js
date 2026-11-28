@@ -197,9 +197,10 @@ router.patch('/:id', protect, async (req, res) => {
     const trip = await Trip.findOne({ _id: req.params.id, userId: req.user._id });
     if (!trip) return res.status(404).json({ message: 'Trip not found or not authorized' });
 
-    const body = { ...req.body };
-    // Owners can't reassign a trip or set internal flags
-    delete body.isVerified; delete body.userId; delete body._id;
+    // Owners may only change these fields (no userId, flags or counters)
+    const EDITABLE = ['fromCity', 'toCity', 'transportMode', 'availableWeight', 'pricePerKg', 'notes', 'pickupStation',
+      'dropStation', 'departureTime', 'arrivalTime', 'pnrNumber', 'flightNumber', 'trainNumber', 'dates', 'date', 'status'];
+    const body = Object.fromEntries(Object.entries(req.body || {}).filter(([k]) => EDITABLE.includes(k)));
     // Accept a legacy single `date` from older app builds the same way POST does —
     // without this, editing a trip's date from an un-updated app silently no-ops
     // (`date` is now a getter-only virtual on the model).
