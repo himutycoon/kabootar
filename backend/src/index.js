@@ -197,6 +197,13 @@ app.use((req, _res, next) => {
 
 // Routes
 app.use('/api/auth', authRoutes);
+// Any successful change to trips or parcels refreshes the shared home feed straight away
+app.use(['/api/trips', '/api/parcels'], (req, res, next) => {
+  if (req.method !== 'GET') {
+    res.on('finish', () => { if (res.statusCode < 400) exploreRoutes.clearExploreCache(); });
+  }
+  next();
+});
 app.use('/api/trips', tripRoutes);
 app.use('/api/parcels', parcelRoutes);
 app.use('/api/match', matchRoutes);
